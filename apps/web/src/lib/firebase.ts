@@ -41,15 +41,30 @@ const logout = async () => {
 
 // ✅ Post Data Type
 export interface Post {
-  id: string; // ✅ Ensure id is included
+  id: string;
   userId: string;
   userName: string;
+  userPhoto: string;
   imageUrl: string;
-  caption?: string;
-  createdAt: string;
+  caption: string;
+  categories: string[];  // ✅ Now supports multiple categories
+  subcategories: string[];  // ✅ Now supports multiple subcategories
+  tags: string[];  // ✅ List of tags
+  date?: string;  // ✅ Optional date for events (YYYY-MM-DD format)
+  time?: string;  // ✅ Optional time for events (HH:MM format)
+  createdAt: string;  // ✅ ISO timestamp
 }
+
 // ✅ Upload a post (image + caption)
-const uploadPost = async (file: File, caption: string) => {
+const uploadPost = async (
+  file: File,
+  caption: string,
+  categories: string[],
+  subcategories: string[],
+  tags: string[],
+  date?: string,
+  time?: string
+) => {
   const user = auth.currentUser;
   if (!user) throw new Error("User must be logged in to upload.");
 
@@ -63,6 +78,11 @@ const uploadPost = async (file: File, caption: string) => {
     userPhoto: user.photoURL || "/default-avatar.png",
     imageUrl,
     caption,
+    categories,
+    subcategories,
+    tags,
+    date: date || null,  // ✅ Store event date if available
+    time: time || null,  // ✅ Store event time if available
     createdAt: new Date().toISOString(),
   });
 

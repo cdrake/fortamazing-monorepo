@@ -1,16 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth, fetchPosts, deletePost, Post, getUserRole } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { auth, fetchPosts, deletePost, getUserRole, Post } from "@/lib/firebase";
+import { onAuthStateChanged, User } from "firebase/auth";
 import Image from "next/image";
 import PostUploader from "@/components/PostUploader";
+import InviteManager from "@/components/InviteManager";
 
 export default function Dashboard() {
   const [posts, setPosts] = useState<Post[]>([]);
-  const [user, setUser] = useState(auth.currentUser);
+  const [user, setUser] = useState<User | null>(auth.currentUser);
   const [isSocialAdmin, setIsSocialAdmin] = useState(false);
-  const [loading, setLoading] = useState(true); // ✅ Track authentication state
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -27,41 +28,41 @@ export default function Dashboard() {
       }
 
       setUser(user);
-      setLoading(false); // ✅ Authentication is complete
+      setLoading(false);
 
-      // ✅ Check user role (social admin)
+      // ✅ Pass the `User` object instead of a string (UID)
       const role = await getUserRole(user);
       setIsSocialAdmin(role === "social-admin");
     });
 
     return () => unsubscribe();
   }, [router]);
-  
 
-  // ✅ Function to refresh posts
-  const loadPosts = async () => {
-    const fetchedPosts: Post[] = await fetchPosts();
-    setPosts(fetchedPosts);
-  };
-
-  useEffect(() => {    
-    loadPosts();
-  }, []);
-
-  // ✅ Handle post deletion
-  const handleDelete = async (postId: string, imageUrl: string) => {
-    await deletePost(postId, imageUrl);
-    setPosts(posts.filter((post) => post.id !== postId)); // Remove post from state
-  };
+  useEffect(() => {
+    if (user) {
+      const loadPosts = async () => {
+        const fetchedPosts: Post[] = await fetchPosts();
+        setPosts(fetchedPosts);
+      };
+      loadPosts();
+    }
+  }, [user]);
 
   if (loading) {
-    return <p>Loading...</p>; // ✅ Prevent rendering before authentication completes
+    return <p>Loading...</p>;
   }
 
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
-      <PostUploader onPostUploaded={loadPosts} />
+      <PostUploader onPostUploaded={() => fetchPosts().then(setPosts)} />
+
+      {isSocialAdmin && (
+        <div className="bg-gray-100 p-4 rounded mt-4">
+          <h2 className="text-xl font-bold">Admin Panel</h2>
+          <InviteManager />
+        </div>
+      )}
 
       <h2 className="text-xl font-bold mt-4">Recent Posts</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4">
@@ -79,10 +80,9 @@ export default function Dashboard() {
               <p className="text-sm text-gray-500 mt-1">{post.userName}</p>
               <p className="text-md">{post.caption}</p>
 
-              {/* ✅ Show delete button for post owners & Social Admins */}
               {(user?.uid === post.userId || isSocialAdmin) && (
                 <button
-                  onClick={() => handleDelete(post.id, post.imageUrl)}
+                  onClick={() => deletePost(post.id, post.imageUrl).then(() => fetchPosts().then(setPosts))}
                   className="mt-2 bg-red-500 text-white px-3 py-1 rounded"
                 >
                   Delete
