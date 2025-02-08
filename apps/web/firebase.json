@@ -1,0 +1,24 @@
+{
+  "hosting": {
+    "site": "fortamazing-7a27c",
+    "public": "out",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ],
+    "redirects": [
+      {
+        "source": "www.fortamazing.com",
+        "destination": "https://fortamazing.com",
+        "type": 301
+      }
+    ]
+  }
+}
