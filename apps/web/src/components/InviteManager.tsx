@@ -1,19 +1,25 @@
 "use client";
 import { useEffect, useState } from "react";
-import { generateInvite, fetchInvites, deleteInvite } from "@/lib/firebase";
+import { fetchInvites, generateInvite, deleteInvite } from "@/lib/firebase";
+
+interface Invite {
+  id: string;
+  email: string;
+  code: string;
+}
 
 export default function InviteManager() {
+  const [invites, setInvites] = useState<Invite[]>([]);
   const [email, setEmail] = useState("");
-  const [invites, setInvites] = useState<{ id: string; email: string; code: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadInvites = async () => {
       try {
-        const fetchedInvites = await fetchInvites();
+        const fetchedInvites: Invite[] = await fetchInvites(); // ✅ Ensure correct type
         setInvites(fetchedInvites);
-      } catch (err) {
-        console.error("Error loading invites:", err);
+      } catch {
+        setError("Failed to load invites.");
       }
     };
 
@@ -23,27 +29,21 @@ export default function InviteManager() {
   const handleGenerateInvite = async () => {
     try {
       const inviteCode = await generateInvite(email);
-      setInvites([...invites, { id: inviteCode, email, code: inviteCode }]);
+      setInvites([...invites, { id: inviteCode, email, code: inviteCode }]); // ✅ Add new invite
       setEmail("");
-    } catch (err) {
-      console.error("Error generating invite:", err);
+    } catch {
       setError("Failed to generate invite.");
     }
   };
 
   const handleDeleteInvite = async (inviteId: string) => {
-    try {
-      await deleteInvite(inviteId);
-      setInvites(invites.filter((invite) => invite.id !== inviteId));
-    } catch (err) {
-      console.error("Error deleting invite:", err);
-      setError("Failed to delete invite.");
-    }
+    await deleteInvite(inviteId);
+    setInvites(invites.filter((invite) => invite.id !== inviteId)); // ✅ Remove deleted invite
   };
 
   return (
-    <div className="p-4 bg-white shadow-md rounded">
-      <h2 className="text-xl font-bold mb-2">Invite Management</h2>
+    <div className="p-4">
+      <h1 className="text-2xl font-bold mb-4">Invite Management</h1>
 
       <div className="mb-4">
         <input
@@ -60,7 +60,7 @@ export default function InviteManager() {
 
       {error && <p className="text-red-500">{error}</p>}
 
-      <h3 className="text-lg font-bold mt-4">Existing Invites</h3>
+      <h2 className="text-xl font-bold mt-4">Existing Invites</h2>
       <ul>
         {invites.map((invite) => (
           <li key={invite.id} className="border p-2 rounded flex justify-between items-center">

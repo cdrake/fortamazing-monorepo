@@ -6,37 +6,26 @@ const categories: Record<string, string[]> = {
   Exercise: ["Running", "Strength Training", "Yoga"],
   Diet: ["Vegan", "Keto", "Paleo"],
   Wellness: ["Mental Health", "Sleep", "Stress Management"],
-  Events: ["Workshops", "Marathons", "Online Webinars"],
+  Event: ["Workshops", "Race", "Online Webinars", "Hike", "Bike Ride"],
   Equipment: ["Gym Gear", "Wearables", "Nutrition Supplements"],
 };
 
-export default function PostUploader({
-  onPostUploaded,
-}: {
-  onPostUploaded: () => void;
-}) {
+export default function PostUploader({ onPostUploaded }: { onPostUploaded: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [caption, setCaption] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedSubcategories, setSelectedSubcategories] = useState<string[]>(
-    []
-  );
+  const [selectedSubcategories, setSelectedSubcategories] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
 
+  // ✅ Check if "Events" is selected
+  const isEventSelected = selectedCategories.includes("Event");
+
   const handleUpload = async () => {
     if (!file) return;
-    await uploadPost(
-      file,
-      caption,
-      selectedCategories,
-      selectedSubcategories,
-      tags,
-      date,
-      time
-    );
+    await uploadPost(file, caption, selectedCategories, selectedSubcategories, tags, isEventSelected ? date : undefined, isEventSelected ? time : undefined);
     onPostUploaded();
     setFile(null);
     setCaption("");
@@ -51,18 +40,8 @@ export default function PostUploader({
     <div className="p-4 bg-white shadow-md rounded">
       <h2 className="text-xl font-bold mb-2">Create a Post</h2>
 
-      <input
-        type="file"
-        onChange={(e) => setFile(e.target.files?.[0] || null)}
-        className="mb-2"
-      />
-      <input
-        type="text"
-        placeholder="Caption"
-        value={caption}
-        onChange={(e) => setCaption(e.target.value)}
-        className="border p-2 rounded w-full mb-2"
-      />
+      <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} className="mb-2" />
+      <input type="text" placeholder="Caption" value={caption} onChange={(e) => setCaption(e.target.value)} className="border p-2 rounded w-full mb-2" />
 
       {/* ✅ Multi-Checkbox for Categories */}
       <h3 className="text-md font-bold">Select Categories</h3>
@@ -84,73 +63,49 @@ export default function PostUploader({
         </label>
       ))}
 
-      {/* ✅ Multi-Checkbox for Subcategories (Only Show Selected Categories) */}
+      {/* ✅ Multi-Checkbox for Subcategories */}
       <h3 className="text-md font-bold mt-2">Select Subcategories</h3>
-      {selectedCategories
-        .flatMap((cat) => categories[cat] || [])
-        .map((sub) => (
-          <label key={sub} className="block">
-            <input
-              type="checkbox"
-              value={sub}
-              checked={selectedSubcategories.includes(sub)}
-              onChange={(e) => {
-                const newSubcategories = e.target.checked
-                  ? [...selectedSubcategories, sub]
-                  : selectedSubcategories.filter((s) => s !== sub);
-                setSelectedSubcategories(newSubcategories);
-              }}
-              className="mr-2"
-            />
-            {sub}
-          </label>
-        ))}
+      {selectedCategories.flatMap((cat) => categories[cat] || []).map((sub) => (
+        <label key={sub} className="block">
+          <input
+            type="checkbox"
+            value={sub}
+            checked={selectedSubcategories.includes(sub)}
+            onChange={(e) => {
+              const newSubcategories = e.target.checked
+                ? [...selectedSubcategories, sub]
+                : selectedSubcategories.filter((s) => s !== sub);
+              setSelectedSubcategories(newSubcategories);
+            }}
+            className="mr-2"
+          />
+          {sub}
+        </label>
+      ))}
 
-      {/* ✅ Event Date & Time */}
-      <h3 className="text-md font-bold mt-2">Event Date (Optional)</h3>
-      <input
-        type="date"
-        value={date}
-        onChange={(e) => setDate(e.target.value)}
-        className="border p-2 rounded w-full mb-2"
-      />
+      {/* ✅ Show Event Date & Time Only if "Events" is Selected */}
+      {isEventSelected && (
+        <>
+          <h3 className="text-md font-bold mt-2">Event Date</h3>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="border p-2 rounded w-full mb-2" />
 
-      <h3 className="text-md font-bold mt-2">Event Time (Optional)</h3>
-      <input
-        type="time"
-        value={time}
-        onChange={(e) => setTime(e.target.value)}
-        className="border p-2 rounded w-full mb-2"
-      />
+          <h3 className="text-md font-bold mt-2">Event Time</h3>
+          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="border p-2 rounded w-full mb-2" />
+        </>
+      )}
 
       {/* ✅ Tag Input */}
-      <input
-        type="text"
-        placeholder="Add tag"
-        value={tagInput}
-        onChange={(e) => setTagInput(e.target.value)}
-        className="border p-2 rounded w-full mb-2"
-      />
-      <button
-        onClick={() => setTags([...tags, tagInput.trim()])}
-        className="bg-blue-500 text-white px-2 py-1 rounded mb-2"
-      >
-        Add Tag
-      </button>
+      <input type="text" placeholder="Add tag" value={tagInput} onChange={(e) => setTagInput(e.target.value)} className="border p-2 rounded w-full mb-2" />
+      <button onClick={() => setTags([...tags, tagInput.trim()])} className="bg-blue-500 text-white px-2 py-1 rounded mb-2">Add Tag</button>
 
       {/* ✅ Display Tags */}
       <div className="flex gap-2 flex-wrap">
         {tags.map((tag, index) => (
-          <span key={index} className="bg-gray-200 text-sm px-2 py-1 rounded">
-            {tag}
-          </span>
+          <span key={index} className="bg-gray-200 text-sm px-2 py-1 rounded">{tag}</span>
         ))}
       </div>
 
-      <button
-        onClick={handleUpload}
-        className="bg-green-500 text-white px-4 py-2 rounded w-full mt-2"
-      >
+      <button onClick={handleUpload} className="bg-green-500 text-white px-4 py-2 rounded w-full mt-2">
         Upload
       </button>
     </div>
