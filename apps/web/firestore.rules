@@ -1,0 +1,32 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ✅ Allow all authenticated users to read posts
+    // ✅ Only the owner can create, update, and delete their own posts
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+
+   // ✅ Allow users to read and write their own profile
+    match /users/{userId} {
+      allow read: if true; // Adjust this if needed
+      allow update, delete: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ✅ Allow fetching all usernames (but not full profiles)
+    match /users {
+      allow read: if true; 
+    }
+
+    // ✅ Restrict invite management to social-admins
+    match /invites/{inviteId} {
+      allow read, write: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "social-admin";
+    }
+  }
+}

@@ -14,6 +14,7 @@ export async function GET(req: Request) {
 
     if (data.status === 1) {
       const product = data.product
+      console.log('data', data )
       return NextResponse.json({
         description: product.product_name,
         calories: product.nutriments["energy-kcal"],

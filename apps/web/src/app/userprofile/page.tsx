@@ -6,7 +6,8 @@ import PostList from "@/components/PostList";
 import Image from "next/image";
 
 export default function UserProfilePage() {
-  const { username } = useParams();
+  const { username } = useParams<{ username: string }>()!;
+
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);

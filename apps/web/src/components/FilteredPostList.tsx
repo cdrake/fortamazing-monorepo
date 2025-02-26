@@ -6,7 +6,7 @@ import PostList from "@/components/PostList";
 import { auth } from "@/lib/firebase";
 
 export default function FilteredPostList() {
-  const { category, subcategory, tag } = useParams(); // ✅ Get filters from URL
+  const { category, subcategory, tag } = useParams()!; // ✅ Get filters from URL
   const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);

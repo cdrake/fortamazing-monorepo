@@ -38,7 +38,7 @@ export default function HomePage() {
     const loadPosts = async () => {
       setLoading(true);
       try {
-        const pathParts = pathname.split("/").filter(Boolean); // Remove empty parts
+        const pathParts = pathname!.split("/").filter(Boolean); // Remove empty parts
 
         const filter: {
           categories?: string[];

@@ -2,8 +2,8 @@
 import { useEffect, useRef } from 'react'
 import Quagga from 'quagga'
 
-type UPCScannerProps = {
-  onScan: (result: { upc: string }) => void
+export type UPCScannerProps = {
+  onScan: (item: { upc: string }) => void
   onClose: () => void
   onError?: (error: string) => void
 }
@@ -20,7 +20,7 @@ export default function UPCScanner({ onScan, onClose, onError }: UPCScannerProps
           type: 'LiveStream',
           target: scannerRef.current,
           constraints: {
-            facingMode: 'environment' // Use rear camera
+            facingMode: 'environment'
           }
         },
         decoder: {
@@ -51,17 +51,33 @@ export default function UPCScanner({ onScan, onClose, onError }: UPCScannerProps
   }, [onScan, onClose, onError])
 
   return (
-    <div>
-      <div ref={scannerRef} style={{ width: '100%', height: '300px', border: '2px solid black' }} />
-      <button
-        onClick={() => {
-          Quagga.stop()
-          onClose()
+    <div className="relative border rounded-lg shadow-md mt-4 p-4 bg-white max-w-full">
+      {/* ✅ Close Button Above Video */}
+      <div className="flex justify-end mb-2">
+        <button
+          onClick={() => {
+            Quagga.stop()
+            onClose()
+          }}
+          className="bg-red-500 text-white px-4 py-2 rounded"
+        >
+          Close Scanner
+        </button>
+      </div>
+
+      {/* ✅ Camera Feed */}
+      <div
+        ref={scannerRef}
+        style={{
+          width: '100%',
+          maxWidth: '600px', // ✅ Limit width to avoid overflow
+          height: '400px',
+          border: '2px solid black',
+          borderRadius: '8px',
+          margin: '0 auto', // ✅ Center the camera feed
+          overflow: 'hidden' // ✅ Prevent overflow beyond borders
         }}
-        className="mt-4 bg-red-500 text-white px-4 py-2 rounded w-full"
-      >
-        Close Scanner
-      </button>
+      />
     </div>
   )
 }

@@ -1,177 +1,157 @@
 'use client'
 import { useState } from 'react'
-import UPCScanner from './UPCScanner'
-
-type LogEntry = {
-  date: string
-  meal: string
-  calories: number
-  protein: number
-  fat: number
-  carbs: number
-  notes: string
-}
+import { FoodItem } from '../types/FoodItem'
+import TextSearch from './Search/TextSearch'
+import UPCScanner from './Search/UPCScanner'
+import ResultDialog from './Dialogs/ResultDialog'
+import AddMealForm from './AddMealForm'
 
 export default function DietLog() {
-  const [logEntries, setLogEntries] = useState<LogEntry[]>([])
-  const [newEntry, setNewEntry] = useState<LogEntry>({
-    date: new Date().toISOString().split('T')[0],
-    meal: '',
-    calories: 0,
-    protein: 0,
-    fat: 0,
-    carbs: 0,
-    notes: ''
-  })
+  const [logEntries, setLogEntries] = useState<FoodItem[]>([])
+  const [showAddForm, setShowAddForm] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
+  const [searchResults, setSearchResults] = useState<FoodItem[]>([])
+  const [selectedItem, setSelectedItem] = useState<FoodItem | null>(null)
 
-  // Handle form input changes
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setNewEntry(prev => ({
-      ...prev,
-      [name]: name === 'calories' || name === 'protein' || name === 'fat' || name === 'carbs' ? Number(value) : value
-    }))
+  // ✅ Add Meal to Log
+  const handleAddMeal = (meal: FoodItem) => {
+    setLogEntries((prev) => [...prev, meal])
+    setShowAddForm(false)
   }
 
-  // Add new log entry to the list
-  const addEntry = () => {
-    if (newEntry.meal) {
-      setLogEntries(prev => [...prev, newEntry])
-      setNewEntry({
-        date: new Date().toISOString().split('T')[0],
-        meal: '',
-        calories: 0,
-        protein: 0,
-        fat: 0,
-        carbs: 0,
-        notes: ''
-      })
+  // ✅ Handle Search Results from Text or UPC Search
+  const handleSearchResults = (results?: FoodItem[]) => {
+    if (!results || results.length === 0) {
+      alert('No results found')
+      return
+    }
+  
+    if (results.length === 1) {
+      setSelectedItem(results[0])
+      setShowAddForm(true)
     } else {
-      alert('Please enter a meal name before adding.')
+      setSearchResults(results)
     }
   }
+  
 
-  // Handle UPC scan and fetch product data
-  const handleScan = async (item: { upc: string }) => {
-    try {
-      const res = await fetch(`/api/upc?upc=${item.upc}`)
-      const data = await res.json()
-
-      if (data.error) {
-        alert('Product not found.')
-      } else {
-        // Auto-fill the form with scanned data
-        setNewEntry(prev => ({
-          ...prev,
-          meal: data.description || 'Scanned Product',
-          calories: data.calories || 0,
-          protein: data.protein || 0,
-          fat: data.fat || 0,
-          carbs: data.carbs || 0
-        }))
-      }
-    } catch (error) {
-      console.error('Error fetching UPC data', error)
-      alert('Failed to fetch product data.')
+  // ✅ Handle Successful UPC Scan
+  const handleUPCScan = async (item: { upc: string }) => {
+    let upc = item.upc.trim()
+  
+    // 🔹 Fix leading zero issue if scanning a UPC-A barcode
+    if (upc.length > 12 && upc.startsWith('0')) {
+      upc = upc.substring(1)
     }
+  
+    console.log('📷 Adjusted UPC:', upc)
+  
+    try {
+      const res = await fetch(`/api/upc?upc=${upc}`)
+      const data = await res.json()
+  
+      if (!data || !data.product) {
+        alert('No results found for scanned UPC')
+        return
+      }
+  
+      console.log('📦 Fetched UPC Data:', data)
+  
+      // ✅ Map OpenFoodFacts response to FoodItem format
+      const mappedFoodItem: FoodItem = {
+        id: data.code,
+        description: data.product.product_name || 'Unknown Product',
+        calories: data.product.nutriments['energy-kcal'] || 0,
+        protein: data.product.nutriments.proteins || 0,
+        fat: data.product.nutriments.fat || 0,
+        carbs: data.product.nutriments.carbohydrates || 0,
+        fiber: data.product.nutriments.fiber || 0,
+        sugars: data.product.nutriments.sugars || 0,
+        sodium: data.product.nutriments.sodium || 0,
+        cholesterol: data.product.nutriments.cholesterol || 0,
+        source: 'OpenFoodFacts',
+      }
+  
+      setSelectedItem(mappedFoodItem)
+      setShowAddForm(true) // ✅ Show form with pre-filled data
+    } catch (err) {
+      console.error('❌ Error fetching UPC data:', err)
+      alert('Failed to fetch product data.')
+    } finally {
+      setShowScanner(false)
+    }
+  }
+  
+  
+
+  // ✅ Handle Scanner Errors
+  const handleScannerError = (error: string) => {
+    console.error('Scanner Error:', error)
+    alert(error)
   }
 
   return (
     <div className="p-4 border rounded-lg shadow-md">
       <h2 className="text-2xl font-bold mb-4">Diet Log</h2>
 
-      {/* 📝 Diet Log Form */}
-      <div className="grid grid-cols-2 gap-4">
-        <input
-          type="date"
-          name="date"
-          value={newEntry.date}
-          onChange={handleChange}
-          className="border p-2 rounded"
-        />
-        <input
-          type="text"
-          name="meal"
-          placeholder="Meal"
-          value={newEntry.meal}
-          onChange={handleChange}
-          className="border p-2 rounded"
-        />
-        <input
-          type="number"
-          name="calories"
-          placeholder="Calories"
-          value={newEntry.calories}
-          onChange={handleChange}
-          className="border p-2 rounded"
-        />
-        <input
-          type="number"
-          name="protein"
-          placeholder="Protein (g)"
-          value={newEntry.protein}
-          onChange={handleChange}
-          className="border p-2 rounded"
-        />
-        <input
-          type="number"
-          name="fat"
-          placeholder="Fat (g)"
-          value={newEntry.fat}
-          onChange={handleChange}
-          className="border p-2 rounded"
-        />
-        <input
-          type="number"
-          name="carbs"
-          placeholder="Carbs (g)"
-          value={newEntry.carbs}
-          onChange={handleChange}
-          className="border p-2 rounded"
-        />
-        <textarea
-          name="notes"
-          placeholder="Notes"
-          value={newEntry.notes}
-          onChange={handleChange}
-          className="border p-2 rounded col-span-2"
-        />
-      </div>
+      {/* ✅ Search by Text */}
+      <TextSearch onResult={handleSearchResults} />
 
-      {/* 📷 UPC Scanner & Add Entry Buttons */}
-      <div className="flex gap-4 my-4">
-        <button
-          onClick={addEntry}
-          className="bg-blue-500 text-white px-4 py-2 rounded"
-        >
-          Add Meal
-        </button>
-        <button
-          onClick={() => setShowScanner(!showScanner)}
-          className="bg-green-500 text-white px-4 py-2 rounded"
-        >
-          {showScanner ? 'Close Scanner' : 'Scan UPC'}
-        </button>
-      </div>
+      {/* ✅ “+” Button to Add Meal */}
+      <button
+        onClick={() => setShowAddForm(true)}
+        className="bg-blue-500 text-white px-4 py-2 rounded my-4"
+      >
+        + Add Meal
+      </button>
 
-      {/* 📷 UPC Scanner Component */}
-      {showScanner && <UPCScanner onScan={handleScan} />}
+      {/* ✅ Separate "Scan" Button */}
+      <button
+        onClick={() => setShowScanner(true)}
+        className="bg-green-500 text-white px-4 py-2 rounded my-4"
+      >
+        📷 Scan Barcode
+      </button>
 
-      {/* 📊 Logged Meals List */}
+      {/* ✅ Show Scanner When Triggered */}
+      {showScanner && (
+        <UPCScanner
+          onScan={handleUPCScan}
+          onClose={() => setShowScanner(false)}
+          onError={handleScannerError}
+        />
+      )}
+
+      {/* ✅ Add Meal Form */}
+      {showAddForm && (
+        <AddMealForm
+        initialData={selectedItem ?? undefined} // ✅ Convert `null` to `undefined`
+        onSave={handleAddMeal}
+        onCancel={() => setShowAddForm(false)}
+      />
+      )}
+
+      {/* ✅ Show Logged Meals */}
       <h3 className="text-lg font-bold mt-4">Logged Meals:</h3>
-      {logEntries.length === 0 ? (
-        <p className="text-gray-500">No meals logged yet.</p>
-      ) : (
-        <ul className="space-y-2">
-          {logEntries.map((entry, idx) => (
-            <li key={idx} className="border p-2 rounded">
-              <strong>{entry.date}</strong> - {entry.meal}<br />
-              Calories: {entry.calories} kcal | Protein: {entry.protein}g | Fat: {entry.fat}g | Carbs: {entry.carbs}g<br />
-              Notes: {entry.notes}
-            </li>
-          ))}
-        </ul>
+      <ul className="space-y-2">
+        {logEntries.map((entry) => (
+          <li key={entry.id} className="border p-2 rounded">
+            <strong>{entry.description}</strong> — {entry.calories} kcal
+          </li>
+        ))}
+      </ul>
+
+      {/* ✅ Dialog for Multiple Search Results */}
+      {searchResults.length > 0 && (
+        <ResultDialog
+          results={searchResults}
+          onSelect={(item) => {
+            setSelectedItem(item)
+            setShowAddForm(true)
+            setSearchResults([])
+          }}
+          onClose={() => setSearchResults([])}
+        />
       )}
     </div>
   )
