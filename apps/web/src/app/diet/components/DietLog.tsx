@@ -47,32 +47,17 @@ export default function DietLog() {
     console.log('📷 Adjusted UPC:', upc)
   
     try {
-      const res = await fetch(`/api/upc?upc=${upc}`)
-      const data = await res.json()
+      const res = await fetch(`/api/nutrition?upc=${upc}`)
+      const foodItem = await res.json()
   
-      if (!data || !data.product) {
+      if (!foodItem) {
         alert('No results found for scanned UPC')
         return
       }
   
-      console.log('📦 Fetched UPC Data:', data)
+      console.log('📦 Fetched UPC Data:', foodItem[0])     
   
-      // ✅ Map OpenFoodFacts response to FoodItem format
-      const mappedFoodItem: FoodItem = {
-        id: data.code,
-        description: data.product.product_name || 'Unknown Product',
-        calories: data.product.nutriments['energy-kcal'] || 0,
-        protein: data.product.nutriments.proteins || 0,
-        fat: data.product.nutriments.fat || 0,
-        carbs: data.product.nutriments.carbohydrates || 0,
-        fiber: data.product.nutriments.fiber || 0,
-        sugars: data.product.nutriments.sugars || 0,
-        sodium: data.product.nutriments.sodium || 0,
-        cholesterol: data.product.nutriments.cholesterol || 0,
-        source: 'OpenFoodFacts',
-      }
-  
-      setSelectedItem(mappedFoodItem)
+      setSelectedItem(foodItem[0])
       setShowAddForm(true) // ✅ Show form with pre-filled data
     } catch (err) {
       console.error('❌ Error fetching UPC data:', err)

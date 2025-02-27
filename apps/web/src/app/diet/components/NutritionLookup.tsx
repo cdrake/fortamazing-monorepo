@@ -7,13 +7,16 @@ export default function NutritionLookup() {
   const [results, setResults] = useState<FoodItem[]>([])
   const [loading, setLoading] = useState<boolean>(false)
 
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://fortamazing.com/api'
+
   const handleSearch = async () => {
     if (!query) return
 
     setLoading(true)
     try {
-      const response = await fetch(`/api/nutrition?query=${encodeURIComponent(query)}`)
-      const data: FoodItem[] = await response.json()
+      const response = await fetch(`${API_URL}/api/nutrition?query=${encodeURIComponent(query)}`)
+      const list = await response.json()
+      const data: FoodItem[] = list.products
 
       setResults(data)
     } catch (error) {

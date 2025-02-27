@@ -1,8 +1,6 @@
 'use client'
 import { useState } from 'react'
 import { FoodItem } from '../../types/FoodItem'
-import { USDAFoodItem } from '../../types/USDAFoodItem'
-import { mapUSDAFoodItemToFoodItem } from '../../utils/mapUSDAFoodItem'
 
 type TextSearchProps = {
   onResult: (results: FoodItem[]) => void
@@ -19,18 +17,12 @@ export default function TextSearch({ onResult }: TextSearchProps) {
 
     try {
       const res = await fetch(`/api/nutrition?query=${encodeURIComponent(searchText)}`)
-      const data: { foods?: USDAFoodItem[] } = await res.json()
+      const results: FoodItem[] = await res.json()
 
-      console.log('USDA API Response:', data)
+      console.log('API Response:', results)
 
-      const parsedResults: FoodItem[] = (data as []).map((item) => 
-         mapUSDAFoodItemToFoodItem(item)      
-      )
-
-      console.log('Mapped Results:', parsedResults)
-
-      if (parsedResults.length > 0) {
-        onResult(parsedResults)
+      if (results.length > 0) {
+        onResult(results)
       } else {
         alert('No results found')
         onResult([])

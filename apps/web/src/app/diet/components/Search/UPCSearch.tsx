@@ -10,16 +10,22 @@ export default function UPCSearch({ onResult }: UPCSearchProps) {
   const [upc, setUPC] = useState('')
 
   const handleUPCSearch = async () => {
-    if (!upc.trim()) return
+    if (!upc.trim()) {
+      alert('Please enter a UPC code')
+      return
+    }
 
     try {
-      const res = await fetch(`/api/upc?upc=${upc}`)
-      const data = await res.json()
+      const res = await fetch(`/api/nutrition?upc=${encodeURIComponent(upc)}`)
+      const results: FoodItem[] = await res.json()
 
-      if (data.error) {
-        alert('No results found')
+      console.log('UPC Search API Response:', results)
+
+      if (results.length > 0) {
+        onResult(results)
       } else {
-        onResult(data.results)
+        alert('No results found')
+        onResult([])
       }
     } catch (error) {
       console.error('UPC search error:', error)
@@ -36,7 +42,10 @@ export default function UPCSearch({ onResult }: UPCSearchProps) {
         onChange={(e) => setUPC(e.target.value)}
         className="border p-2 rounded w-full"
       />
-      <button onClick={handleUPCSearch} className="bg-green-500 text-white px-4 py-2 rounded">
+      <button
+        onClick={handleUPCSearch}
+        className="bg-green-500 text-white px-4 py-2 rounded"
+      >
         Scan/Search
       </button>
     </div>

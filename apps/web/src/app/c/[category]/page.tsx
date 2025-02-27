@@ -3,19 +3,27 @@ import PostList from "@/components/PostList"
 import { Metadata } from "next"
 import { auth, getUserRole } from "@/lib/firebase"
 
-type Params = Promise<{ category: string }>
+// ✅ Generate static category pages
+export async function generateStaticParams() {
+  return [
+    { category: "fitness" },
+    { category: "nutrition" },
+    { category: "wellness" },
+    // ✅ Add more categories as needed
+  ]
+}
 
-export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
-  const { category } = await params
-
+// ✅ Fix params type (remove Promise)
+export async function generateMetadata({ params }: { params: Promise<{ category: string }> }): Promise<Metadata> {
+  const meta = await params
   return {
-    title: `${category} | Fort Amazing`,
-    description: `Explore posts in the ${category} category.`
+    title: `${meta.category} | Fort Amazing`,
+    description: `Explore posts in the ${meta.category} category.`
   }
 }
 
-// ✅ Handle params as a Promise
-export default async function CategoryPage({ params }: { params: Params }) {
+// ✅ Fix params type (remove Promise)
+export default async function CategoryPage({ params }: { params: Promise<{ category: string }> }) {
   const { category } = await params
 
   let isSocialAdmin = false
