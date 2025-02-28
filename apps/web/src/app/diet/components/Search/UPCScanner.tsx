@@ -1,7 +1,6 @@
-'use client'
-
 import { useEffect, useRef, useState } from 'react'
 import { BrowserMultiFormatReader } from '@zxing/browser'
+import { NotFoundException } from '@zxing/library'
 
 type UPCScannerProps = {
   onScan: (result: { upc: string }) => void
@@ -11,8 +10,9 @@ type UPCScannerProps = {
 
 export default function UPCScanner({ onScan, onClose, onError }: UPCScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const [scanner, setScanner] = useState<BrowserMultiFormatReader | null>(null)
+  const [, setScanner] = useState<BrowserMultiFormatReader | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const controlsRef = useRef<{ stop: () => void } | null>(null) // ✅ Use ref instead of state
 
   useEffect(() => {
     if (!videoRef.current) return
@@ -20,8 +20,7 @@ export default function UPCScanner({ onScan, onClose, onError }: UPCScannerProps
     const codeReader = new BrowserMultiFormatReader()
     setScanner(codeReader)
 
-    BrowserMultiFormatReader
-      .listVideoInputDevices()
+    BrowserMultiFormatReader.listVideoInputDevices()
       .then((videoDevices) => {
         if (videoDevices.length === 0) {
           setError('No camera found')
@@ -29,19 +28,20 @@ export default function UPCScanner({ onScan, onClose, onError }: UPCScannerProps
           return
         }
 
-        // Select the first available camera (rear camera preferred)
-        const selectedDeviceId = videoDevices.find((device) =>
-          device.label.toLowerCase().includes('back')
-        )?.deviceId || videoDevices[0].deviceId
+        const selectedDeviceId =
+          videoDevices.find((device) => device.label.toLowerCase().includes('back'))
+            ?.deviceId || videoDevices[0].deviceId
 
-        return codeReader.decodeFromVideoDevice(selectedDeviceId, videoRef.current!, (result, err) => {
+        return codeReader.decodeFromVideoDevice(selectedDeviceId, videoRef.current!, (result, err, controls) => {
+          controlsRef.current = controls // ✅ Store controls in ref
+
           if (result) {
             onScan({ upc: result.getText() })
-            codeReader.decodeFromVideoDevice(undefined, videoRef.current!, () => {}) // ✅ Stops camera
+            controls.stop() // ✅ Stop scanning after successful scan
             onClose()
           }
-          if (err) {
-            console.warn('Scanning error:', err)
+          if (err && !(err instanceof NotFoundException)) {
+            console.warn("Scanning error:", err); // Log only meaningful errors
           }
         })
       })
@@ -51,7 +51,7 @@ export default function UPCScanner({ onScan, onClose, onError }: UPCScannerProps
       })
 
     return () => {
-      codeReader.decodeFromVideoDevice(undefined, undefined, () => {})
+      controlsRef.current?.stop() // ✅ Stop scanner on unmount
     }
   }, [onScan, onClose, onError])
 
@@ -64,7 +64,7 @@ export default function UPCScanner({ onScan, onClose, onError }: UPCScannerProps
       )}
       <button
         onClick={() => {
-          scanner?.decodeFromVideoDevice(undefined, videoRef.current!, () => {})
+          controlsRef.current?.stop() // ✅ Properly stop scanner
           onClose()
         }}
         className="mt-4 bg-red-500 text-white px-4 py-2 rounded w-full"
