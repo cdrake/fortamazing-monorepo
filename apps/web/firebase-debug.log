@@ -1,0 +1,132 @@
+[debug] [2025-02-27T23:44:42.531Z] ----------------------------------------------------------------------
+[debug] [2025-02-27T23:44:42.533Z] Command:       /home/cd/.nvm/versions/node/v20.18.2/bin/node /home/cd/.nvm/versions/node/v20.18.2/bin/firebase serve
+[debug] [2025-02-27T23:44:42.533Z] CLI Version:   13.30.0
+[debug] [2025-02-27T23:44:42.534Z] Platform:      linux
+[debug] [2025-02-27T23:44:42.534Z] Node Version:  v20.18.2
+[debug] [2025-02-27T23:44:42.534Z] Time:          Thu Feb 27 2025 18:44:42 GMT-0500 (Eastern Standard Time)
+[debug] [2025-02-27T23:44:42.534Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-02-27T23:44:42.747Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-02-27T23:44:42.747Z] > authorizing via signed-in user (christopher.a.drake@gmail.com)
+[debug] [2025-02-27T23:44:42.747Z] [iam] checking project fortamazing-7a27c for permissions ["firebase.projects.get"]
+[debug] [2025-02-27T23:44:42.748Z] Checked if tokens are valid: false, expires at: 1740700717330
+[debug] [2025-02-27T23:44:42.748Z] Checked if tokens are valid: false, expires at: 1740700717330
+[debug] [2025-02-27T23:44:42.748Z] > refreshing access token with scopes: []
+[debug] [2025-02-27T23:44:42.749Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2025-02-27T23:44:42.750Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-02-27T23:44:42.859Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2025-02-27T23:44:42.859Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2025-02-27T23:44:42.866Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/fortamazing-7a27c:testIamPermissions [none]
+[debug] [2025-02-27T23:44:42.866Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/fortamazing-7a27c:testIamPermissions x-goog-quota-user=projects/fortamazing-7a27c
+[debug] [2025-02-27T23:44:42.867Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/fortamazing-7a27c:testIamPermissions {"permissions":["firebase.projects.get"]}
+[debug] [2025-02-27T23:44:43.049Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/fortamazing-7a27c:testIamPermissions 200
+[debug] [2025-02-27T23:44:43.049Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/fortamazing-7a27c:testIamPermissions {"permissions":["firebase.projects.get"]}
+[debug] [2025-02-27T23:44:43.050Z] Checked if tokens are valid: true, expires at: 1740703481859
+[debug] [2025-02-27T23:44:43.050Z] Checked if tokens are valid: true, expires at: 1740703481859
+[debug] [2025-02-27T23:44:43.050Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/fortamazing-7a27c [none]
+[debug] [2025-02-27T23:44:43.155Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/fortamazing-7a27c 200
+[debug] [2025-02-27T23:44:43.156Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/fortamazing-7a27c {"projectNumber":"304795134519","projectId":"fortamazing-7a27c","lifecycleState":"ACTIVE","name":"FortAmazing","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2025-02-07T16:32:28.714712Z"}
+[info] 
+[info] === Serving from '/home/cd/git_projects/fortamazing'...
+[info] 
+[debug] [2025-02-27T23:44:43.167Z] Checked if tokens are valid: true, expires at: 1740703481859
+[debug] [2025-02-27T23:44:43.167Z] Checked if tokens are valid: true, expires at: 1740703481859
+[debug] [2025-02-27T23:44:43.169Z] defaultcredentials: writing to file /home/cd/.config/firebase/christopher_a.drake_gmail.com_application_default_credentials.json
+[debug] [2025-02-27T23:44:43.171Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/fortamazing-7a27c/sites 
+[debug] [2025-02-27T23:44:43.176Z] Setting GAC to /home/cd/.config/firebase/christopher_a.drake_gmail.com_application_default_credentials.json {"metadata":{"emulator":{"name":"functions"},"message":"Setting GAC to /home/cd/.config/firebase/christopher_a.drake_gmail.com_application_default_credentials.json"}}
+[debug] [2025-02-27T23:44:43.177Z] Checked if tokens are valid: true, expires at: 1740703481859
+[debug] [2025-02-27T23:44:43.177Z] Checked if tokens are valid: true, expires at: 1740703481859
+[debug] [2025-02-27T23:44:43.177Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/fortamazing-7a27c/adminSdkConfig [none]
+[debug] [2025-02-27T23:44:43.522Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/fortamazing-7a27c/sites 200
+[debug] [2025-02-27T23:44:43.522Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/fortamazing-7a27c/sites {"sites":[{"name":"projects/fortamazing-7a27c/sites/fortamazing","defaultUrl":"https://fortamazing.web.app","type":"USER_SITE"},{"name":"projects/fortamazing-7a27c/sites/fortamazing-7a27c","defaultUrl":"https://fortamazing-7a27c.web.app","appId":"1:304795134519:web:264e3d1c1809bff2ff2db2","type":"DEFAULT_SITE"}]}
+[debug] [2025-02-27T23:44:43.523Z] Checked if tokens are valid: true, expires at: 1740703481859
+[debug] [2025-02-27T23:44:43.523Z] Checked if tokens are valid: true, expires at: 1740703481859
+[debug] [2025-02-27T23:44:43.524Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/fortamazing-7a27c/webApps/1:304795134519:web:264e3d1c1809bff2ff2db2/config [none]
+[debug] [2025-02-27T23:44:43.545Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/fortamazing-7a27c/adminSdkConfig 200
+[debug] [2025-02-27T23:44:43.546Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/fortamazing-7a27c/adminSdkConfig {"projectId":"fortamazing-7a27c","storageBucket":"fortamazing-7a27c.firebasestorage.app"}
+[debug] [2025-02-27T23:44:43.990Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/fortamazing-7a27c/webApps/1:304795134519:web:264e3d1c1809bff2ff2db2/config 200
+[debug] [2025-02-27T23:44:43.991Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/fortamazing-7a27c/webApps/1:304795134519:web:264e3d1c1809bff2ff2db2/config {"projectId":"fortamazing-7a27c","appId":"1:304795134519:web:264e3d1c1809bff2ff2db2","storageBucket":"fortamazing-7a27c.firebasestorage.app","apiKey":"AIzaSyDCXVK6yBvpjeoP4stncpuO0pYQkMwZ7oc","authDomain":"fortamazing-7a27c.firebaseapp.com","messagingSenderId":"304795134519","measurementId":"G-FX8J27FEDK"}
+[debug] [2025-02-27T23:44:43.997Z] Checked if tokens are valid: true, expires at: 1740703481859
+[debug] [2025-02-27T23:44:43.997Z] Checked if tokens are valid: true, expires at: 1740703481859
+[debug] [2025-02-27T23:44:43.998Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/fortamazing-7a27c [none]
+[debug] [2025-02-27T23:44:44.150Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/fortamazing-7a27c 200
+[debug] [2025-02-27T23:44:44.151Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/fortamazing-7a27c {"projectId":"fortamazing-7a27c","projectNumber":"304795134519","displayName":"FortAmazing","name":"projects/fortamazing-7a27c","resources":{"hostingSite":"fortamazing-7a27c"},"state":"ACTIVE","etag":"1_25bec571-e071-46eb-955e-484b226587b5"}
+[info] i  functions: Watching "/home/cd/git_projects/fortamazing/functions" for Cloud Functions... {"metadata":{"emulator":{"name":"functions"},"message":"Watching \"/home/cd/git_projects/fortamazing/functions\" for Cloud Functions..."}}
+[info] i  hosting[fortamazing-7a27c]: Serving hosting files from: out {"metadata":{"emulator":{"name":"hosting"},"message":"Serving hosting files from: \u001b[1mout\u001b[22m"}}
+[info] ✔  hosting[fortamazing-7a27c]: Local server: http://localhost:5000 {"metadata":{"emulator":{"name":"hosting"},"message":"Local server: \u001b[4m\u001b[1mhttp://localhost:5000\u001b[22m\u001b[24m"}}
+[debug] [2025-02-27T23:44:44.182Z] Validating nodejs source
+[debug] [2025-02-27T23:44:44.817Z] > [functions] package.json contents: {
+  "name": "functions",
+  "scripts": {
+    "lint": "eslint .",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "type": "module",
+  "engines": {
+    "node": "22"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "@types/node": "^22.13.5",
+    "axios": "^1.7.9",
+    "eslint-config-next": "^14.2.24",
+    "express": "^4.21.2",
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.3.2",
+    "next": "^14.1.4"
+  },
+  "devDependencies": {
+    "@types/node-fetch": "^2.6.12",
+    "@typescript-eslint/eslint-plugin": "^5.62.0",
+    "@typescript-eslint/parser": "^5.62.0",
+    "eslint": "^8.57.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-plugin-import": "^2.29.1",
+    "firebase-functions-test": "^3.1.0",
+    "typescript": "^5.7.3"
+  },
+  "private": true
+}
+[debug] [2025-02-27T23:44:44.817Z] Building nodejs source
+[debug] [2025-02-27T23:44:44.818Z] Failed to find version of module node: reached end of search path /home/cd/git_projects/fortamazing/functions/node_modules
+[warn] ⚠  functions: Your requested "node" version "18" doesn't match your global version "20". Using node@20 from host. 
+[debug] [2025-02-27T23:44:44.819Z] Could not find functions.yaml. Must use http discovery
+[debug] [2025-02-27T23:44:44.822Z] Found firebase-functions binary at '/home/cd/git_projects/fortamazing/functions/node_modules/.bin/firebase-functions'
+[info] Serving at port 8018
+
+[debug] [2025-02-27T23:44:45.061Z] Got response from /__/functions.yaml {"endpoints":{"api":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"httpsTrigger":{},"entryPoint":"api"}},"specVersion":"v1alpha1","requiredAPIs":[],"extensions":{}}
+[info] ✔  functions: Loaded functions definitions from source: api. {"metadata":{"emulator":{"name":"functions"},"message":"Loaded functions definitions from source: api."}}
+[info] ✔  functions[us-central1-api]: http function initialized (http://localhost:5001/fortamazing-7a27c/us-central1/api). {"metadata":{"emulator":{"name":"functions"},"message":"\u001b[1mhttp\u001b[22m function initialized (http://localhost:5001/fortamazing-7a27c/us-central1/api)."}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /diet/ HTTP/1.1" 200 - "-" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /diet/ HTTP/1.1\" 200 - \"-\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/css/4f42317c88b15cc2.css HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/css/4f42317c88b15cc2.css HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/chunks/webpack-8d01e29e70eae3cd.js HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/chunks/webpack-8d01e29e70eae3cd.js HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/chunks/main-app-1d2caa265ca381cc.js HTTP/1.1" 200 463 "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/chunks/main-app-1d2caa265ca381cc.js HTTP/1.1\" 200 463 \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/chunks/4bd1b696-2165b0a07d9f6125.js HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/chunks/4bd1b696-2165b0a07d9f6125.js HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/chunks/512-db8ad561ad0702a9.js HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/chunks/512-db8ad561ad0702a9.js HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/chunks/f71d1b72-371f03a25399b77d.js HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/chunks/f71d1b72-371f03a25399b77d.js HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/chunks/517-72106b1e6cc8a89c.js HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/chunks/517-72106b1e6cc8a89c.js HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/chunks/72-7f143ee9b3aa223e.js HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/chunks/72-7f143ee9b3aa223e.js HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/chunks/565-4991bdf463e19e1f.js HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/chunks/565-4991bdf463e19e1f.js HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/chunks/bc9e92e6-26d02909491d6aa4.js HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/chunks/bc9e92e6-26d02909491d6aa4.js HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/chunks/173-9a8a95e6b0da3417.js HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/chunks/173-9a8a95e6b0da3417.js HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/chunks/app/layout-d272c4cf213e8dc9.js HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/chunks/app/layout-d272c4cf213e8dc9.js HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/css/dc354a3a70f66567.css HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/css/dc354a3a70f66567.css HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/chunks/app/diet/page-3b755c3345d60bc6.js HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/chunks/app/diet/page-3b755c3345d60bc6.js HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/chunks/998-c6d06275f2b1b6df.js HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/chunks/998-c6d06275f2b1b6df.js HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/chunks/779-50df3ce0b6df627d.js HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/chunks/779-50df3ce0b6df627d.js HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /favicon.ico HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /favicon.ico HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /index.txt?_rsc=1imrx HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /index.txt?_rsc=1imrx HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /login/index.txt?_rsc=1imrx HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /login/index.txt?_rsc=1imrx HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/chunks/app/login/page-77ebea4dbcd9fa24.js HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/chunks/app/login/page-77ebea4dbcd9fa24.js HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/chunks/app/page-56e6f90ccada9091.js HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/chunks/app/page-56e6f90ccada9091.js HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /settings/index.txt?_rsc=1imrx HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /settings/index.txt?_rsc=1imrx HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /u/christopher.a.drake%40gmail.com.txt?_rsc=1imrx HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /u/christopher.a.drake%40gmail.com.txt?_rsc=1imrx HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] "GET /_next/static/chunks/app/settings/page-97488f71952e18e3.js HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:52 +0000] \"GET /_next/static/chunks/app/settings/page-97488f71952e18e3.js HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:53 +0000] "GET /admin/index.txt?_rsc=1imrx HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:53 +0000] \"GET /admin/index.txt?_rsc=1imrx HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [27/Feb/2025:23:44:53 +0000] "GET /_next/static/chunks/app/admin/page-7995d2d11d8a4478.js HTTP/1.1" 200 - "http://localhost:5000/diet/" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [27/Feb/2025:23:44:53 +0000] \"GET /_next/static/chunks/app/admin/page-7995d2d11d8a4478.js HTTP/1.1\" 200 - \"http://localhost:5000/diet/\" \"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36\""}}
