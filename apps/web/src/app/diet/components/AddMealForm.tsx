@@ -1,17 +1,17 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { FoodItem } from '../types/FoodItem'
+import { Meal } from '../types/meal'
 
 export default function AddMealForm({
   initialData,
   onSave,
   onCancel
 }: {
-  initialData?: FoodItem
-  onSave: (meal: FoodItem, mealTime: string) => void
+  initialData?: Meal
+  onSave: (meal: Meal) => void
   onCancel: () => void
 }) {
-  const [formData, setFormData] = useState<FoodItem>(
+  const [formData, setFormData] = useState<Meal>(
     initialData || {
       id: '',
       description: '',
@@ -24,10 +24,11 @@ export default function AddMealForm({
       sodium: 0,
       cholesterol: 0,
       source: 'OpenFoodFacts',
+      mealTime: 'unspecified',
     }
   )
   
-  const [mealTime, setMealTime] = useState('unspecified')
+  // const [mealTime, setMealTime] = useState('unspecified')
 
   useEffect(() => {
     if (initialData) {
@@ -35,15 +36,19 @@ export default function AddMealForm({
     }
   }, [initialData])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
-  }
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value, // ✅ Ensure value is properly assigned
+    }));
+  };
 
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault()
-        onSave(formData, mealTime)
+        onSave(formData)
       }}
       className="border p-4 rounded shadow-md bg-white"
     >
@@ -52,8 +57,9 @@ export default function AddMealForm({
       <label className="block mb-2">
         Meal Time:
         <select
-          value={mealTime}
-          onChange={(e) => setMealTime(e.target.value)}
+          name="mealTime"
+          value={formData.mealTime}
+          onChange={handleChange}
           className="border p-2 w-full"
         >
           <option value="unspecified">Unspecified</option>

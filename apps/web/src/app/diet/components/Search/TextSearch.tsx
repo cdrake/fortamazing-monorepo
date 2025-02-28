@@ -19,8 +19,6 @@ export default function TextSearch({ onResult }: TextSearchProps) {
       const res = await fetch(`/api/nutrition?query=${encodeURIComponent(searchText)}`)
       const results: FoodItem[] = await res.json()
 
-      console.log('API Response:', results)
-
       if (results.length > 0) {
         onResult(results)
       } else {
