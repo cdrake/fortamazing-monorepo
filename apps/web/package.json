@@ -2,10 +2,10 @@
   "name": "fortamazing",
   "version": "0.1.0",
   "private": true,
-  "type":"module",
+  "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",    
+    "build": "next build",
     "predeploy": "npm run build && cp .next/next-font-manifest.json .next/server/",
     "start": "next start",
     "lint": "next lint",
@@ -14,13 +14,13 @@
   },
   "dependencies": {
     "@radix-ui/themes": "^3.2.0",
+    "@zxing/browser": "^0.1.5",
     "firebase": "^11.3.0",
     "firebase-admin": "^13.1.0",
     "firebase-functions": "^6.3.2",
     "html5-qrcode": "^2.3.8",
     "next": "15.1.6",
     "punycode": "^2.3.1",
-    "quagga": "^0.12.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
