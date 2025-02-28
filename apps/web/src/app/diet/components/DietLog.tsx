@@ -100,7 +100,7 @@ export default function DietLog() {
     let upc = item.upc.trim()
 
     // 🔹 Fix leading zero issue if scanning a UPC-A barcode
-    if (upc.length > 12 && upc.startsWith('0')) {
+    if (upc.length >= 12 && upc.startsWith('0')) {
       upc = upc.substring(1)
     }
 
@@ -114,19 +114,19 @@ export default function DietLog() {
     try {
       const res = await fetch(`/api/nutrition?upc=${upc}`)
       const data = await res.json()
-
-      if (!data || !data.results || data.results.length === 0) {
+      console.log(data)
+      if (!data || data.length === 0) {
         alert('No results found for scanned UPC')
         return
       }
 
-      console.log('📦 Fetched UPC Data:', data.results)
+      console.log('📦 Fetched UPC Data:', data)
 
-      if (data.results.length === 1) {
-        setSelectedItem(data.results[0])
+      if (data.length === 1) {
+        setSelectedItem(data[0])
         setShowAddForm(true)
       } else {
-        setSearchResults(data.results)
+        setSearchResults(data)
       }
     } catch (err) {
       console.error('❌ Error fetching UPC data:', err)
