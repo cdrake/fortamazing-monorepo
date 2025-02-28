@@ -7,6 +7,7 @@ import ResultDialog from './Dialogs/ResultDialog'
 import AddMealForm from './AddMealForm'
 import { db, auth, collection, setDoc, getDocs, query, doc } from '../../../lib/firebase'
 import { serverTimestamp } from 'firebase/firestore'
+import { onAuthStateChanged, User } from 'firebase/auth'
 
 export default function DietLog() {
   const [logEntries, setLogEntries] = useState<FoodItem[]>([])
@@ -17,28 +18,38 @@ export default function DietLog() {
   const [loading, setLoading] = useState(true)
 
   // ✅ Fetch Meals from Firestore on Mount
-  useEffect(() => {
-    const fetchMeals = async () => {
-      setLoading(true)
-      const user = auth.currentUser
-      if (!user) {
-        setLoading(false)
-        return
-      }
-
-      const mealsQuery = query(collection(db, `users/${user.uid}/meals`))
-      const querySnapshot = await getDocs(mealsQuery)
-      console.log('query snap', querySnapshot)
-      const meals: FoodItem[] = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as FoodItem))
-
-      setLogEntries(meals)
+  
+  const fetchMeals = async (user: User | null) => {
+    if (!user) {
       setLoading(false)
+      return
     }
 
-    fetchMeals()
+    const mealsQuery = query(collection(db, `users/${user.uid}/meals`))
+    const querySnapshot = await getDocs(mealsQuery)
+    console.log('query snap', querySnapshot)
+    const meals: FoodItem[] = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as FoodItem))
+
+    setLogEntries(meals)
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    setLoading(true)
+    
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        fetchMeals(user)
+      } else {
+        setLogEntries([]) // Clear meals if logged out
+        setLoading(false)
+      }
+    })
+  
+    return () => unsubscribe() // Cleanup listener
   }, [])
 
   // ✅ Save Meal to Firestore
