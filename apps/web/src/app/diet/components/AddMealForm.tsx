@@ -2,19 +2,13 @@
 import { useEffect, useState } from 'react'
 import { FoodItem } from '../types/FoodItem'
 
-// type AddMealFormProps = {
-//   initialData?: FoodItem | null
-//   onSave: (meal: FoodItem) => void
-//   onCancel: () => void
-// }
-
 export default function AddMealForm({
   initialData,
   onSave,
   onCancel
 }: {
   initialData?: FoodItem
-  onSave: (meal: FoodItem) => void
+  onSave: (meal: FoodItem, mealTime: string) => void
   onCancel: () => void
 }) {
   const [formData, setFormData] = useState<FoodItem>(
@@ -32,8 +26,9 @@ export default function AddMealForm({
       source: 'OpenFoodFacts',
     }
   )
+  
+  const [mealTime, setMealTime] = useState('unspecified')
 
-  // ✅ Update form if initialData changes
   useEffect(() => {
     if (initialData) {
       setFormData(initialData)
@@ -48,11 +43,26 @@ export default function AddMealForm({
     <form
       onSubmit={(e) => {
         e.preventDefault()
-        onSave(formData)
+        onSave(formData, mealTime)
       }}
       className="border p-4 rounded shadow-md bg-white"
     >
       <h3 className="text-xl font-bold mb-2">Add Meal</h3>
+
+      <label className="block mb-2">
+        Meal Time:
+        <select
+          value={mealTime}
+          onChange={(e) => setMealTime(e.target.value)}
+          className="border p-2 w-full"
+        >
+          <option value="unspecified">Unspecified</option>
+          <option value="breakfast">Breakfast</option>
+          <option value="lunch">Lunch</option>
+          <option value="dinner">Dinner</option>
+          <option value="snack">Snack</option>
+        </select>
+      </label>
 
       <label className="block mb-2">
         Description:

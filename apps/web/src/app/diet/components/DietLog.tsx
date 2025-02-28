@@ -34,8 +34,8 @@ export default function DietLog() {
   const [selectedItem, setSelectedItem] = useState<FoodItem | undefined>(
     undefined
   );
-  const [mealTime, setMealTime] = useState("unspecified");
   const [, setLoading] = useState(true);
+  const [showCalendar, setShowCalendar] = useState(false);
 
   const fetchMeals = useCallback(
     async (user: User | null) => {
@@ -103,7 +103,7 @@ export default function DietLog() {
     return () => unsubscribe();
   }, [fetchMeals]);
 
-  const handleAddMeal = async (meal: FoodItem) => {
+  const handleAddMeal = async (meal: FoodItem, mealTime: string) => {
     const user = auth.currentUser;
     if (!user) {
       alert("You must be logged in to save meals.");
@@ -116,6 +116,7 @@ export default function DietLog() {
         db,
         `users/${user.uid}/dates/${selectedDate}/mealTime/${mealTime}/meals/${mealId}`
       );
+
       await setDoc(mealRef, {
         ...meal,
         id: mealId,
@@ -127,10 +128,12 @@ export default function DietLog() {
       setLogEntries((prev) => {
         const updated = { ...prev };
         if (!updated[selectedDate]) updated[selectedDate] = {};
-        if (!updated[selectedDate][mealTime]) updated[selectedDate][mealTime] = [];
+        if (!updated[selectedDate][mealTime])
+          updated[selectedDate][mealTime] = [];
         updated[selectedDate][mealTime].push({ ...meal, id: mealRef.id });
         return updated;
       });
+
       setShowAddForm(false);
     } catch (error) {
       console.error("❌ Error saving meal:", error);
@@ -184,24 +187,21 @@ export default function DietLog() {
   return (
     <div className="p-4 border rounded-lg shadow-md">
       <h2 className="text-2xl font-bold mb-4">Diet Log</h2>
-      <Calendar
-        onChange={(date) =>
-          setSelectedDate(dayjs(date as Date).format("YYYY-MM-DD"))
-        }
-        value={new Date(selectedDate)}
-        className="mb-4"
-      />
-      <select
-        value={mealTime}
-        onChange={(e) => setMealTime(e.target.value)}
-        className="border p-2 rounded mb-4"
+      <button
+        onClick={() => setShowCalendar(!showCalendar)}
+        className="bg-blue-500 text-white px-3 py-1 rounded mb-4"
       >
-        <option value="unspecified">Unspecified</option>
-        <option value="breakfast">Breakfast</option>
-        <option value="lunch">Lunch</option>
-        <option value="dinner">Dinner</option>
-        <option value="snack">Snack</option>
-      </select>
+        📅 Change Date
+      </button>
+      {showCalendar && (
+        <Calendar
+          onChange={(date) =>
+            setSelectedDate(dayjs(date as Date).format("YYYY-MM-DD"))
+          }
+          value={new Date(selectedDate)}
+          className="mb-4"
+        />
+      )}      
       <TextSearch onResult={handleSearchResults} />
       <button
         onClick={() => setShowAddForm(true)}
@@ -224,19 +224,15 @@ export default function DietLog() {
       {showAddForm && (
         <AddMealForm
           initialData={selectedItem ?? undefined}
-          onSave={handleAddMeal}
+          onSave={(meal, mealTime) => handleAddMeal(meal, mealTime)}
           onCancel={() => setShowAddForm(false)}
         />
       )}
-      {logEntries[selectedDate] &&
-      Object.keys(logEntries[selectedDate]).length > 0 ? (
-        Object.entries(logEntries[selectedDate]).map(([mealTime, meals]) => (
-          <DailyMealsCard
-            key={mealTime}
-            date={selectedDate}
-            meals={Array.isArray(meals) ? meals : []}
-          />
-        ))
+      {logEntries[selectedDate] ? (
+        <DailyMealsCard
+          date={selectedDate}
+          meals={Object.values(logEntries[selectedDate]).flat()} // Combine all meals into one list
+        />
       ) : (
         <p className="text-gray-500">No meals logged for {selectedDate}.</p>
       )}
