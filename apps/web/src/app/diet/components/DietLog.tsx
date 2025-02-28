@@ -21,7 +21,10 @@ import { onAuthStateChanged, User } from "firebase/auth";
 import dayjs from "dayjs";
 
 export default function DietLog() {
-  const [logEntries, setLogEntries] = useState<Record<string, FoodItem[]>>({});
+  const [logEntries, setLogEntries] = useState<
+    Record<string, Record<string, FoodItem[]>>
+  >({});
+
   const [selectedDate, setSelectedDate] = useState(
     dayjs().format("YYYY-MM-DD")
   );
@@ -49,6 +52,8 @@ export default function DietLog() {
       }
 
       const meals: Record<string, Record<string, FoodItem[]>> = {};
+      meals[selectedDate] = {}; // Ensure `selectedDate` is always initialized
+
       for (const mealTime of mealTimes) {
         const mealsQuery = query(
           collection(
@@ -61,13 +66,14 @@ export default function DietLog() {
         querySnapshot.docs.forEach((doc) => {
           const meal = doc.data() as FoodItem;
           const mealCategory = doc.ref.parent.id;
-          if (!meals[selectedDate]) meals[selectedDate] = {};
+
           if (!meals[selectedDate][mealCategory])
             meals[selectedDate][mealCategory] = [];
           meals[selectedDate][mealCategory].push(meal);
         });
       }
-      setLogEntries(meals[selectedDate]);
+
+      setLogEntries((prev) => ({ ...prev, ...meals }));
       setLoading(false);
     },
     [selectedDate]
@@ -120,8 +126,9 @@ export default function DietLog() {
 
       setLogEntries((prev) => {
         const updated = { ...prev };
-        if (!updated[selectedDate]) updated[selectedDate] = [];
-        updated[selectedDate].push({ ...meal, id: mealRef.id });
+        if (!updated[selectedDate]) updated[selectedDate] = {};
+        if (!updated[selectedDate][mealTime]) updated[selectedDate][mealTime] = [];
+        updated[selectedDate][mealTime].push({ ...meal, id: mealRef.id });
         return updated;
       });
       setShowAddForm(false);
@@ -222,14 +229,17 @@ export default function DietLog() {
         />
       )}
       {logEntries[selectedDate] &&
+      Object.keys(logEntries[selectedDate]).length > 0 ? (
         Object.entries(logEntries[selectedDate]).map(([mealTime, meals]) => (
           <DailyMealsCard
             key={mealTime}
             date={selectedDate}
-            mealTime={mealTime}
             meals={Array.isArray(meals) ? meals : []}
           />
-        ))}
+        ))
+      ) : (
+        <p className="text-gray-500">No meals logged for {selectedDate}.</p>
+      )}
       {searchResults.length > 0 && (
         <ResultDialog
           results={searchResults}

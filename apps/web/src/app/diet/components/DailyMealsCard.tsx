@@ -3,11 +3,10 @@ import { FoodItem } from '../types/FoodItem'
 
 interface DailyMealsCardProps {
   date: string
-  mealTime: string
   meals: FoodItem[]
 }
 
-export default function DailyMealsCard({ date, mealTime, meals }: DailyMealsCardProps) {
+export default function DailyMealsCard({ date, meals }: DailyMealsCardProps) {
   const getDailyTotals = (meals: FoodItem[]) => {
     return meals.reduce(
       (totals, meal) => {
@@ -25,9 +24,9 @@ export default function DailyMealsCard({ date, mealTime, meals }: DailyMealsCard
 
   return (
     <div className="p-4 border rounded-lg shadow-md mt-4">
-      <h3 className="text-lg font-bold">{mealTime.charAt(0).toUpperCase() + mealTime.slice(1)} for {date}:</h3>
+      <h3 className="text-lg font-bold">Meals for {date}:</h3>
       {meals.length === 0 ? (
-        <p className="text-gray-500">No meals logged for this meal time.</p>
+        <p className="text-gray-500">No meals logged for this date.</p>
       ) : (
         <ul className="space-y-4">
           {meals.map((meal) => (
@@ -38,7 +37,7 @@ export default function DailyMealsCard({ date, mealTime, meals }: DailyMealsCard
           ))}
         </ul>
       )}
-      <h3 className="text-lg font-bold mt-4">{mealTime.charAt(0).toUpperCase() + mealTime.slice(1)} Totals:</h3>
+      <h3 className="text-lg font-bold mt-4">Daily Totals:</h3>
       <p>k: {totals.calories} | c: {totals.carbs}g | p: {totals.protein}g | f: {totals.fat}g</p>
     </div>
   )
