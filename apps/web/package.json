@@ -15,6 +15,7 @@
   "dependencies": {
     "@radix-ui/themes": "^3.2.0",
     "@zxing/browser": "^0.1.5",
+    "dayjs": "^1.11.13",
     "firebase": "^11.3.0",
     "firebase-admin": "^13.1.0",
     "firebase-functions": "^6.3.2",
@@ -22,6 +23,7 @@
     "next": "15.1.6",
     "punycode": "^2.3.1",
     "react": "^19.0.0",
+    "react-calendar": "^5.1.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
