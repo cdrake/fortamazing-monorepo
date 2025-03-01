@@ -58,8 +58,17 @@ export default function AddMealForm({
       }}
       className="border p-4 rounded shadow-md bg-white"
     >
-      <h3 className="text-xl font-bold mb-2">Add Meal</h3>
-      
+      <div className="flex justify-between items-center mb-2">
+      <h3 className="text-xl font-bold text-left">Add Meal</h3>
+        <div>
+        <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-300 rounded">
+          Cancel
+        </button>
+        <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded">
+          Save Meal
+        </button>
+        </div>
+      </div>
       <div className="mb-4 font-bold">
         Total: {formData.calories} k | {formData.carbs} c | {formData.protein} p | {formData.fat} f
       </div>
@@ -146,14 +155,7 @@ export default function AddMealForm({
         />
       </label>
 
-      <div className="flex justify-end space-x-2 mt-4">
-        <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-300 rounded">
-          Cancel
-        </button>
-        <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded">
-          Save Meal
-        </button>
-      </div>
+      
     </form>
   )
 }
