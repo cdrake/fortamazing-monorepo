@@ -11,6 +11,14 @@ export default function AddMealForm({
   onSave: (meal: Meal) => void
   onCancel: () => void
 }) {
+  const getDefaultMealTime = () => {
+    const hour = new Date().getHours()
+    if (hour >= 5 && hour < 11) return 'breakfast'
+    if (hour >= 11 && hour < 15) return 'lunch'
+    if (hour >= 15 && hour < 21) return 'dinner'
+    return 'snack'
+  }
+
   const [formData, setFormData] = useState<Meal>(
     initialData || {
       id: '',
@@ -24,15 +32,13 @@ export default function AddMealForm({
       sodium: 0,
       cholesterol: 0,
       source: 'OpenFoodFacts',
-      mealTime: 'unspecified',
+      mealTime: getDefaultMealTime()
     }
   )
-  
-  // const [mealTime, setMealTime] = useState('unspecified')
 
   useEffect(() => {
     if (initialData) {
-      setFormData(initialData)
+      setFormData({...initialData, mealTime: getDefaultMealTime()})
     }
   }, [initialData])
 
@@ -40,9 +46,9 @@ export default function AddMealForm({
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: value, // ✅ Ensure value is properly assigned
-    }));
-  };
+      [name]: value,
+    }))
+  }
 
   return (
     <form
@@ -52,8 +58,21 @@ export default function AddMealForm({
       }}
       className="border p-4 rounded shadow-md bg-white"
     >
-      <h3 className="text-xl font-bold mb-2">Add Meal</h3>
-
+      <div className="flex justify-between items-center mb-2">
+      <h3 className="text-xl font-bold text-left">Add Meal</h3>
+        <div>
+        <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-300 rounded">
+          Cancel
+        </button>
+        <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded">
+          Save Meal
+        </button>
+        </div>
+      </div>
+      <div className="mb-4 font-bold">
+        Total: {formData.calories} k | {formData.carbs} c | {formData.protein} p | {formData.fat} f
+      </div>
+      
       <label className="block mb-2">
         Meal Time:
         <select
@@ -136,14 +155,7 @@ export default function AddMealForm({
         />
       </label>
 
-      <div className="flex justify-end space-x-2 mt-4">
-        <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-300 rounded">
-          Cancel
-        </button>
-        <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded">
-          Save Meal
-        </button>
-      </div>
+      
     </form>
   )
 }

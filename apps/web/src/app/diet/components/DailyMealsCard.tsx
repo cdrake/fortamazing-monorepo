@@ -24,6 +24,8 @@ export default function DailyMealsCard({ date, meals }: DailyMealsCardProps) {
 
   return (
     <div className="p-4 border rounded-lg shadow-md mt-4">
+      <h3 className="text-lg font-bold mt-4">Daily Totals:</h3>
+      <p>k: {totals.calories} | c: {totals.carbs}g | p: {totals.protein}g | f: {totals.fat}g</p>
       <h3 className="text-lg font-bold">Meals for {date}:</h3>
       {meals.length === 0 ? (
         <p className="text-gray-500">No meals logged for this date.</p>
@@ -37,8 +39,7 @@ export default function DailyMealsCard({ date, meals }: DailyMealsCardProps) {
           ))}
         </ul>
       )}
-      <h3 className="text-lg font-bold mt-4">Daily Totals:</h3>
-      <p>k: {totals.calories} | c: {totals.carbs}g | p: {totals.protein}g | f: {totals.fat}g</p>
+      
     </div>
   )
 }
