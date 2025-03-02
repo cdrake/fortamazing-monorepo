@@ -1,18 +1,11 @@
 {
   "hosting": {
     "site": "fortamazing-7a27c",
-    "public": "out",
+    "source": ".",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [
-      {
-        "source": "/api/**",
-        "function": "api"
-      },
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ],
+    "frameworksBackend": {
+      "framework": "next.js"
+    },
     "redirects": [
       {
         "source": "www.fortamazing.com",
@@ -20,18 +13,10 @@
         "type": 301
       }
     ]
-    
   },
   "functions": {
     "source": "functions",
     "codebase": "default",
-    "runtime": "nodejs18",
-    "ignore": [
-      "node_modules",
-      ".git",
-      "firebase-debug.log",
-      "firebase-debug.*.log",
-      "*.local"
-    ]
+    "runtime": "nodejs18"
   }
 }
