@@ -345,4 +345,4 @@ export const getAllCategories = async (): Promise<string[]> => {
 };
 
 
-export { app, auth, db, storage, collection, doc, addDoc, setDoc, getDocs, query, where, signInWithGoogle, logout, uploadPost, fetchPosts, deletePost, getUserRole, generateInvite, fetchInvites, deleteInvite, sendVerificationEmail, authCheck, updateProfilePicture, updateUsername };
+export { app, auth, db, storage, collection, doc, addDoc, setDoc, getDoc, getDocs, updateDoc, query, where, signInWithGoogle, logout, uploadPost, fetchPosts, deletePost, getUserRole, generateInvite, fetchInvites, deleteInvite, sendVerificationEmail, authCheck, updateProfilePicture, updateUsername };

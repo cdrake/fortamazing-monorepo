@@ -1,51 +1,41 @@
-import { fetchPosts, Post } from "@/lib/firebase"
-import PostList from "@/components/PostList"
-import { Metadata } from "next"
-import { auth, getUserRole } from "@/lib/firebase"
+'use client'
+import useSWR from 'swr'
+import { fetchPosts } from '@/lib/firebase'
+import PostList from '@/components/PostList'
+import { auth, getUserRole } from '@/lib/firebase'
+import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 
-// ✅ Generate static category pages
-export async function generateStaticParams() {
-  return [
-    { category: "fitness" },
-    { category: "nutrition" },
-    { category: "wellness" },
-    // ✅ Add more categories as needed
-  ]
-}
+export default function CategoryPage() {
+  const params = useParams()
+  const category = Array.isArray(params!.category) ? params!.category[0] : params!.category
+  const [isSocialAdmin, setIsSocialAdmin] = useState(false)
 
-// ✅ Fix params type (remove Promise)
-export async function generateMetadata({ params }: { params: Promise<{ category: string }> }): Promise<Metadata> {
-  const meta = await params
-  return {
-    title: `${meta.category} | Fort Amazing`,
-    description: `Explore posts in the ${meta.category} category.`
-  }
-}
+  // ✅ Fetch user role dynamically
+  useEffect(() => {
+    const checkUserRole = async () => {
+      const user = auth.currentUser
+      if (user) {
+        const role = await getUserRole(user)
+        setIsSocialAdmin(role === 'social-admin')
+      }
+    }
+    checkUserRole()
+  }, [])
 
-// ✅ Fix params type (remove Promise)
-export default async function CategoryPage({ params }: { params: Promise<{ category: string }> }) {
-  const { category } = await params
+  // ✅ Fetch posts dynamically with SWR
+  const { data: posts, error } = useSWR(
+    category ? `category/${category}` : null,
+    () => fetchPosts({ categories: [category] })
+  )
 
-  let isSocialAdmin = false
+  if (error) return <p>Failed to load posts for {category}</p>
+  if (!posts) return <p>Loading posts...</p>
 
-  // ✅ Check user role if authenticated
-  const user = auth.currentUser
-  if (user) {
-    const role = await getUserRole(user)
-    isSocialAdmin = role === "social-admin"
-  }
-
-  try {
-    const posts: Post[] = await fetchPosts({ categories: [category] })
-
-    return (
-      <div className="p-4">
-        <h1 className="text-2xl font-bold mb-4">{category.toUpperCase()} Posts</h1>
-        <PostList posts={posts} isSocialAdmin={isSocialAdmin} />
-      </div>
-    )
-  } catch (error) {
-    console.error("Error fetching category posts:", error)
-    return <p>Failed to load posts for {category}</p>
-  }
+  return (
+    <div className="p-4">
+      <h1 className="text-2xl font-bold mb-4">{category.toUpperCase()} Posts</h1>
+      <PostList posts={posts} isSocialAdmin={isSocialAdmin} />
+    </div>
+  )
 }

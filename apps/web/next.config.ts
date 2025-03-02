@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   distDir: '.next',
   reactStrictMode: true,
   pageExtensions: ['js', 'jsx', 'ts', 'tsx'],
-  output: 'export', // ✅ Switch from 'standalone' to 'export' for static export
+  // output: 'export', // ✅ Switch from 'standalone' to 'export' for static export
   trailingSlash: true,
 }
 
