@@ -19,3 +19,23 @@ body {
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
 }
+/* globals.css */
+.map-fixed {
+  width: 900px;        /* <- pick the pixel width you want */
+  height: 500px;       /* <- pick the pixel height you want */
+  max-width: none;
+  box-sizing: border-box;
+  overflow: hidden;    /* hide any overflow during redraws */
+  position: relative;  /* keeps child MapContainer absolute positioning happy */
+}
+
+/* Prevent global img rules from breaking Leaflet tiles (keep this) */
+.leaflet-container img.leaflet-tile,
+.leaflet-container .leaflet-tile {
+  max-width: none !important;
+  width: auto !important;
+  height: auto !important;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  will-change: transform;
+}
