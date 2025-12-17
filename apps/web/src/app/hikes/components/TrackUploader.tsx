@@ -10,6 +10,9 @@ import { gpx as parseGpx, kml as parseKml } from "togeojson";
 import type { Map as LeafletMap } from "leaflet";
 import ClientFileInput from "@/app/hikes/components/ClientFileInput"; // ensure this exists (client-only picker)
 
+// NEW: import helper to save hikes with Storage + Firestore
+import { saveAllWithStorage } from "../lib/hikeUploader";
+
 /**
  * TrackUploader - multi-file GPX/KML uploader and preview
  * - multiple files (via ClientFileInput and drag/drop)
@@ -19,6 +22,7 @@ import ClientFileInput from "@/app/hikes/components/ClientFileInput"; // ensure 
  */
 
 // ----- Types -----
+// NOTE: originalFile is optional and preserved so the upload helper can send the raw GPX/KML to Storage
 type DayTrack = {
   id: string;
   name: string;
@@ -30,6 +34,7 @@ type DayTrack = {
   };
   color: string;
   visible: boolean;
+  originalFile?: File;
 };
 
 type UploadState = "idle" | "parsing" | "preview" | "saving" | "saved" | "error";
@@ -62,8 +67,6 @@ export default function TrackUploader(): JSX.Element {
 
   const [directFallback, setDirectFallback] = useState(false);
   const directDivId = "direct-leaflet-fallback";
-
-  
 
   // dynamic import react-leaflet
   useEffect(() => {
@@ -268,7 +271,7 @@ export default function TrackUploader(): JSX.Element {
         });
 
         if (hasMultipleLineFeatures) {
-          // Create one DayTrack per feature
+          // Create one DayTrack per feature (attach originalFile so we can upload the source)
           for (let fi = 0; fi < features.length; fi++) {
             const feat = features[fi];
             const singleFc: FeatureCollection<Geometry> = { type: "FeatureCollection", features: [feat] };
@@ -281,6 +284,7 @@ export default function TrackUploader(): JSX.Element {
               stats: { distance_m: stats.distance_m, elevation: stats.elevation, bounds: stats.bounds },
               color,
               visible: true,
+              originalFile: f,
             };
             parsedDays.push(day);
           }
@@ -295,6 +299,7 @@ export default function TrackUploader(): JSX.Element {
             stats: { distance_m: stats.distance_m, elevation: stats.elevation, bounds: stats.bounds },
             color,
             visible: true,
+            originalFile: f,
           };
           parsedDays.push(day);
         }
@@ -389,21 +394,14 @@ export default function TrackUploader(): JSX.Element {
     setDayTracks([]); setCombinedGeojson(null); setCombinedStats(null); setFileNameList([]); setState("idle");
   }, []);
 
+  // ----- Updated saveAll: delegate to saveAllWithStorage helper -----
   const saveAll = useCallback(async () => {
     setState("saving"); setError(null);
     try {
-      const auth = getAuth();
-      const user = auth.currentUser;
-      if (!user) throw new Error("Sign in to save");
-      const ext = getCombinedExtentFromDayTracks(dayTracks);
-      const payload = {
-        title: `Multi-day hike: ${fileNameList.join(", ")}`,
-        createdAt: serverTimestamp(),
-        days: dayTracks.map(d => ({ name: d.name, geojson: d.geojson, stats: d.stats, color: d.color })),
-        combined: combinedGeojson,
-        extents: ext ? { bbox: ext.bbox, sw: ext.sw, ne: ext.ne, center: ext.center } : null,
-      };
-      await addDoc(collection(db, "users", user.uid, "hikes"), payload);
+      // call helper that uploads original files (if present) and writes the hike document
+      const title = `Multi-day hike: ${fileNameList.join(", ")}`;
+      const { hikeId } = await saveAllWithStorage({ title, dayTracks, combinedGeojson });
+      console.log("Hike saved:", hikeId);
       setState("saved");
     } catch (err) {
       console.error("save error", err);
