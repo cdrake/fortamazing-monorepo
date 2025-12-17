@@ -53,6 +53,7 @@ export default function TrackUploader(): JSX.Element {
   const [combinedGeojson, setCombinedGeojson] = useState<FeatureCollection<Geometry> | null>(null);
   const [combinedStats, setCombinedStats] = useState<{ distance_m: number; elevation: { min:number; max:number } | null; bounds: [number,number,number,number] | null } | null>(null);
   const [fileNameList, setFileNameList] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [activeTileId, setActiveTileId] = useState<string>(TILE_LAYERS[0].id);
 
@@ -61,6 +62,8 @@ export default function TrackUploader(): JSX.Element {
 
   const [directFallback, setDirectFallback] = useState(false);
   const directDivId = "direct-leaflet-fallback";
+
+  
 
   // dynamic import react-leaflet
   useEffect(() => {
@@ -341,6 +344,13 @@ export default function TrackUploader(): JSX.Element {
     }
   }, []);
 
+  const onNativeInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    handleFiles(e.target.files);
+    // reset value so same file can be re-selected if needed
+    e.target.value = "";
+  }, [handleFiles]);
+
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault(); e.stopPropagation();
     handleFiles(e.dataTransfer.files);
@@ -434,69 +444,101 @@ export default function TrackUploader(): JSX.Element {
   return (
     <div style={{ display: "flex", gap: 20 }}>
       {/* left: controls / file input */}
-      <div
-        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
-        onDrop={onDrop}
-        style={{
-          border: "2px dashed #ddd",
-          borderRadius: 8,
-          padding: 20,
-          width: 360,
-          minHeight: 220,
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "flex-start",
-          alignItems: "stretch",
-          background: state === "parsing" ? "#fafafa" : "white",
-        }}
-      >
-        <div style={{ marginBottom: 8 }}>
-          {/* client-only picker ensures the DOM input supports multiple */}
-          <ClientFileInput
-            onFiles={(filesOrList) => {
-              console.log("ClientFileInput -> onFiles called, filesOrList:", filesOrList);
-              // normalize FileList|File[] to File[]
-              const filesArray: File[] = (filesOrList && (filesOrList as FileList).item) ? Array.from(filesOrList as FileList) : (filesOrList as File[]);
-              console.log("ClientFileInput -> normalized filesArray:", filesArray?.map(f=>f.name));
-              // call your existing handler
-              handleFiles(filesOrList);
-            }}
-            buttonLabel="Choose GPX files"
-          />
+      {/* left: controls / file input */}
+<div
+  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
+  onDrop={onDrop}
+  style={{
+    border: "2px dashed #ddd",
+    borderRadius: 8,
+    padding: 20,
+    width: 360,
+    minHeight: 220,
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "flex-start",
+    alignItems: "stretch",
+    background: state === "parsing" ? "#fafafa" : "white",
+  }}
+>
+  {/* Hidden native input (used by Upload files button) */}
+  <input
+    ref={fileInputRef}
+    type="file"
+    accept=".gpx,.kml,application/gpx+xml,application/vnd.google-earth.kml+xml"
+    multiple
+    style={{ display: "none" }}
+    onChange={onNativeInputChange}
+  />
 
-        </div>
+  <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+    {/* ClientFileInput (existing client-only picker) */}
+    <ClientFileInput
+      onFiles={(filesOrList) => {
+        console.log("ClientFileInput -> onFiles called, filesOrList:", filesOrList);
+        const filesArray: File[] = (filesOrList && (filesOrList as FileList).item) ? Array.from(filesOrList as FileList) : (filesOrList as File[]);
+        console.log("ClientFileInput -> normalized filesArray:", filesArray?.map(f=>f.name));
+        handleFiles(filesOrList);
+      }}
+      buttonLabel="Choose GPX files"
+    />
 
-        <div style={{ marginTop: 8 }}>
-          <small>Status: {state}</small>
-        </div>
+    {/* NEW: explicit Upload button that opens native file picker */}
+    <button
+      type="button"
+      onClick={() => {
+        // prefer native picker input; if not available, fallback to showOpenFilePicker in openNativePicker
+        if (fileInputRef.current) {
+          fileInputRef.current.click();
+        } else {
+          openNativePicker();
+        }
+      }}
+      aria-label="Upload GPX or KML files"
+      style={{
+        padding: "8px 12px",
+        borderRadius: 6,
+        border: "1px solid #ccc",
+        background: "#fff",
+        cursor: "pointer",
+      }}
+    >
+      Upload files
+    </button>
+  </div>
 
-        <div style={{ marginTop: 12 }}>
-          <strong>Files</strong>
-          {fileNameList.length === 0 ? (
-            <div style={{ color: "#777", marginTop: 8 }}>No files selected — drag & drop multiple GPX/KML files here, or click Choose GPX files.</div>
-          ) : (
-            <ol style={{ paddingLeft: 18 }}>
-              {dayTracks.map((d, idx) => (
-                <li key={d.id} style={{ marginBottom: 6 }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <input type="checkbox" checked={d.visible} onChange={() => toggleDayVisible(d.id)} />
-                    <span style={{ width: 12, height: 12, background: d.color, display: "inline-block", borderRadius: 3 }} />
-                    <span style={{ marginLeft: 6 }}>{`Day ${idx+1}: ${d.name}`}</span>
-                    <small style={{ marginLeft: "auto", color: "#666" }}>{(d.stats.distance_m/1000).toFixed(2)} km</small>
-                  </label>
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
+  <div style={{ marginTop: 8 }}>
+    <small>Status: {state}</small>
+  </div>
 
-        <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-          <button onClick={saveAll} disabled={!dayTracks.length || state === "saving"}>Save hike</button>
-          <button onClick={clearAll} disabled={!dayTracks.length}>Clear</button>
-        </div>
+  <div style={{ marginTop: 12 }}>
+    <strong>Files</strong>
+    {fileNameList.length === 0 ? (
+      <div style={{ color: "#777", marginTop: 8 }}>No files selected — drag & drop multiple GPX/KML files here, or click Choose GPX files / Upload files.</div>
+    ) : (
+      <ol style={{ paddingLeft: 18 }}>
+        {dayTracks.map((d, idx) => (
+          <li key={d.id} style={{ marginBottom: 6 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input type="checkbox" checked={d.visible} onChange={() => toggleDayVisible(d.id)} />
+              <span style={{ width: 12, height: 12, background: d.color, display: "inline-block", borderRadius: 3 }} />
+              <span style={{ marginLeft: 6 }}>{`Day ${idx+1}: ${d.name}`}</span>
+              <small style={{ marginLeft: "auto", color: "#666" }}>{(d.stats.distance_m/1000).toFixed(2)} km</small>
+            </label>
+          </li>
+        ))}
+      </ol>
+    )}
+  </div>
 
-        {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
-      </div>
+  <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+    <button onClick={saveAll} disabled={!dayTracks.length || state === "saving"}>Save hike</button>
+    <button onClick={clearAll} disabled={!dayTracks.length}>Clear</button>
+  </div>
+
+  {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
+</div>
+
 
       {/* right: map + preview */}
       <div style={{ flex: 1 }}>
