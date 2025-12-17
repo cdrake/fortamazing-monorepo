@@ -204,12 +204,11 @@ export default function TrackUploader(): JSX.Element {
     return () => { try { if (directMap) directMap.remove(); } catch {} };
   }, [directFallback, combinedGeojson]);
 
-  // ----- FILE PARSING (robust for multiple files) -----
+  // ----- FILE PARSING (robust for multiple files & multi-track files) -----
   const handleFiles = useCallback(async (filesOrList: FileList | File[] | null) => {
     console.log("ENTER handleFiles", filesOrList);
 
     setError(null);
-    console.log(filesOrList)
     if (!filesOrList) return;
     setState("parsing");
 
@@ -239,8 +238,8 @@ export default function TrackUploader(): JSX.Element {
           else throw new Error(`Unsupported file type for ${f.name}`);
         }
 
+        // If there are no features, try to convert <wpt> nodes into points
         if (!gjson.features || gjson.features.length === 0) {
-          // convert <wpt> to point features if present
           const wpts = Array.from(xml.getElementsByTagName("wpt") || []);
           if (wpts.length > 0) {
             const wptFeatures = wpts.map((node: Element) => {
@@ -257,19 +256,47 @@ export default function TrackUploader(): JSX.Element {
           }
         }
 
-        const stats = computeStats(gjson);
-        const color = PALETTE[parsedDays.length % PALETTE.length] ?? "#3388ff";
-        const day: DayTrack = {
-          id: `${Date.now()}-${i}`,
-          name: f.name,
-          geojson: gjson,
-          stats: { distance_m: stats.distance_m, elevation: stats.elevation, bounds: stats.bounds },
-          color,
-          visible: true,
-        };
+        // ---- New: Split multi-feature track files into separate DayTrack entries ----
+        const features = gjson.features || [];
+        // Check if this file looks like a multi-track/multi-segment GPX (multiple LineString/MultiLineString features)
+        const hasMultipleLineFeatures = features.length > 1 && features.some((ft) => {
+          const t = ft.geometry?.type;
+          return t === "LineString" || t === "MultiLineString";
+        });
 
-        parsedDays.push(day);
-        console.log(`DEBUG parsed ${f.name}: features=${gjson.features ? gjson.features.length : 0} distance_m=${stats.distance_m}`);
+        if (hasMultipleLineFeatures) {
+          // Create one DayTrack per feature
+          for (let fi = 0; fi < features.length; fi++) {
+            const feat = features[fi];
+            const singleFc: FeatureCollection<Geometry> = { type: "FeatureCollection", features: [feat] };
+            const stats = computeStats(singleFc);
+            const color = PALETTE[parsedDays.length % PALETTE.length] ?? "#3388ff";
+            const day: DayTrack = {
+              id: `${Date.now()}-${i}-${fi}`,
+              name: `${f.name} (part ${fi + 1})`,
+              geojson: singleFc,
+              stats: { distance_m: stats.distance_m, elevation: stats.elevation, bounds: stats.bounds },
+              color,
+              visible: true,
+            };
+            parsedDays.push(day);
+          }
+        } else {
+          // Keep as a single DayTrack (one file => one day)
+          const stats = computeStats(gjson);
+          const color = PALETTE[parsedDays.length % PALETTE.length] ?? "#3388ff";
+          const day: DayTrack = {
+            id: `${Date.now()}-${i}`,
+            name: f.name,
+            geojson: gjson,
+            stats: { distance_m: stats.distance_m, elevation: stats.elevation, bounds: stats.bounds },
+            color,
+            visible: true,
+          };
+          parsedDays.push(day);
+        }
+
+        console.log(`DEBUG parsed ${f.name}: features=${gjson.features ? gjson.features.length : 0}`);
       }
 
       // expose debug
@@ -362,7 +389,7 @@ export default function TrackUploader(): JSX.Element {
       const payload = {
         title: `Multi-day hike: ${fileNameList.join(", ")}`,
         createdAt: serverTimestamp(),
-        days: dayTracks.map(d => ({ name: d.name, geojson: d.geojson, stats: d.stats })),
+        days: dayTracks.map(d => ({ name: d.name, geojson: d.geojson, stats: d.stats, color: d.color })),
         combined: combinedGeojson,
         extents: ext ? { bbox: ext.bbox, sw: ext.sw, ne: ext.ne, center: ext.center } : null,
       };
@@ -493,27 +520,91 @@ export default function TrackUploader(): JSX.Element {
           }}>Fit to all tracks</button>
         </div>
 
-        <div ref={wrapperRef} style={{ height: 480, borderRadius: 6, overflow: "hidden", border: "1px solid #eee", position: "relative" }}>
-          {directFallback ? (
-            <div id={directDivId} style={{ height: "100%", width: "100%" }} />
-          ) : !RL ? (
-            <div style={{ padding: 20 }}>Loading map…</div>
-          ) : (
-            // @ts-ignore - RL is dynamic module
-            <RL.MapContainer whenCreated={onMapCreated} style={{ height: "100%", width: "100%", position: "absolute", left: 0, top: 0 }} center={[-41.17, 174.09]} zoom={10} scrollWheelZoom={true}>
-              {/* @ts-ignore */}
-              <RL.TileLayer key={activeTileId} url={TILE_LAYERS.find(t => t.id === activeTileId)!.url} {...(TILE_LAYERS.find(t => t.id === activeTileId)!.options || {})} />
-              {dayTracks.map(d => d.visible && (
-                // @ts-ignore
-                <RL.GeoJSON key={d.id} data={d.geojson} style={{ color: d.color, weight: 4, opacity: 0.95 }} />
-              ))}
-              {combinedGeojson && (
-                // @ts-ignore
-                <RL.GeoJSON data={combinedGeojson} style={{ color: "#ff5722", weight: 6, opacity: 0.75 }} />
-              )}
-            </RL.MapContainer>
+        <div
+  ref={wrapperRef}
+  style={{
+    height: 480,
+    borderRadius: 6,
+    overflow: "hidden",
+    border: "1px solid #eee",
+    position: "relative",
+  }}
+>
+  {directFallback ? (
+    <div id={directDivId} style={{ height: "100%", width: "100%" }} />
+  ) : !RL ? (
+    <div style={{ padding: 20 }}>Loading map…</div>
+      ) : (
+        // @ts-ignore
+        <RL.MapContainer
+          whenCreated={onMapCreated}
+          style={{
+            height: "100%",
+            width: "100%",
+            position: "absolute",
+            left: 0,
+            top: 0,
+          }}
+          center={[-41.17, 174.09]}
+          zoom={10}
+          scrollWheelZoom={true}
+        >
+          {/* Basemap */}
+          {/* @ts-ignore */}
+          <RL.TileLayer
+            key={activeTileId}
+            url={TILE_LAYERS.find((t) => t.id === activeTileId)!.url}
+            {...(TILE_LAYERS.find((t) => t.id === activeTileId)!.options || {})}
+          />
+
+          {/* ----------------------------- */}
+          {/* 1) Combined — draw UNDER days */}
+          {/* ----------------------------- */}
+          {combinedGeojson && (
+            // @ts-ignore
+            <RL.GeoJSON
+              data={combinedGeojson}
+              style={() => ({
+                color: "#ff5722",
+                weight: 4,
+                opacity: 0.30,   // lighter so day colors show clearly
+              })}
+            />
           )}
-        </div>
+
+          {/* ----------------------------------------------- */}
+          {/* 2) Each day — style as a function, full-opacity */}
+          {/* ----------------------------------------------- */}
+          {dayTracks.map(
+            (d) =>
+              d.visible && (
+                // @ts-ignore
+                <RL.GeoJSON
+                  key={d.id}
+                  data={d.geojson}
+                  style={() => ({
+                    color: d.color,
+                    weight: 5,
+                    opacity: 1.0,
+                  })}
+                  // @ts-ignore - ensures colored circle markers for waypoint/point features
+                  pointToLayer={(_feature: any, latlng: any) => {
+                    return RL.circleMarker(latlng, {
+                      radius: 5,
+                      fill: true,
+                      fillOpacity: 0.9,
+                      color: d.color,
+                      weight: 1,
+                      opacity: 0.95,
+                    });
+                  }}
+                />
+              )
+          )}
+        </RL.MapContainer>
+      )}
+    </div>
+
 
         {/* extents & stats display */}
         <div style={{ marginTop: 12 }}>
