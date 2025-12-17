@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth, signInWithGoogle, createUserProfile } from "@/lib/firebase";
+import { auth, signInWithGoogle, signInWithFacebook, createUserProfile } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth"; // ✅ Import User type
 
 export default function LoginPage() {
@@ -37,6 +37,25 @@ export default function LoginPage() {
     }
   };
 
+  const handleFacebookSignIn = async () => {
+  setLoading(true);
+  try {
+    const user = await signInWithFacebook();
+
+    // If redirect is used, onAuthStateChanged will finish it.
+    if (user) {
+      await createUserProfile(user);
+      setUser(user);
+      router.push("/");
+    }
+  } catch (error) {
+    console.error("Facebook login error:", error);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
   if (loading) {
     return <p className="p-4">Loading...</p>;
   }
@@ -48,13 +67,19 @@ export default function LoginPage() {
       {user ? (
         <p className="text-green-500">You are already logged in.</p>
       ) : (
-        <button
-          onClick={handleGoogleSignIn}
-          className="bg-blue-500 text-white px-4 py-2 rounded w-full"
-          disabled={loading}
-        >
-          {loading ? "Signing in..." : "Sign in with Google"}
-        </button>
+        <><button
+            onClick={handleGoogleSignIn}
+            className="bg-blue-500 text-white px-4 py-2 rounded w-full"
+            disabled={loading}
+          >
+            {loading ? "Signing in..." : "Sign in with Google"}
+          </button><button
+            onClick={handleFacebookSignIn}
+            className="bg-[#1877F2] text-white px-4 py-2 rounded w-full mt-3"
+          >
+              Sign in with Facebook
+            </button></>
+
       )}
     </div>
   );

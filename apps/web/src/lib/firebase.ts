@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, User, sendSignInLinkToEmail, ActionCodeSettings, sendEmailVerification } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, User, sendSignInLinkToEmail, ActionCodeSettings, sendEmailVerification, FacebookAuthProvider, signInWithRedirect } from "firebase/auth";
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, getDoc, query, where, setDoc, updateDoc, orderBy } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
@@ -29,6 +29,20 @@ const signInWithGoogle = async () => {
     console.error("Google Sign-In Error:", error);
   }
 };
+
+export async function signInWithFacebook(): Promise<User | null> {
+  const provider = new FacebookAuthProvider();
+  provider.addScope("email");
+
+  try {
+    const result = await signInWithPopup(auth, provider);
+    return result.user;
+  } catch (err: any) {
+    // fallback to redirect when popup is blocked
+    await signInWithRedirect(auth, provider);
+    return null; // firebase will complete login after redirect
+  }
+}
 
 // ✅ Sign out function
 const logout = async () => {
