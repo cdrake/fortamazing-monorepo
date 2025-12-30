@@ -4,7 +4,18 @@ import React, { JSX, useCallback, useEffect, useRef, useState } from "react";
 import type { FeatureCollection, Geometry, Position } from "geojson";
 import * as turf from "@turf/turf";
 import { getAuth } from "firebase/auth";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  where,
+  orderBy,
+  getDocs,
+  doc,
+  getDoc,
+  updateDoc,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { gpx as parseGpx, kml as parseKml } from "togeojson";
 import type { Map as LeafletMap } from "leaflet";
@@ -14,15 +25,24 @@ import ClientFileInput from "@/app/hikes/components/ClientFileInput"; // ensure 
 import { saveAllWithStorage } from "../lib/hikeUploader";
 import { DayTrack } from "../lib/geo";
 
+// Storage
+import { getStorage, ref as storageRef, getDownloadURL } from "firebase/storage";
+
 /**
  * TrackUploader - multi-file GPX/KML uploader and preview
  * - multiple files (via ClientFileInput and drag/drop)
  * - basemap selection
  * - compute combined extents and auto-fit
  * - per-day layers + combined overlay
+ *
+ * Exposes `registerLoad?: (fn: (hikeId: string) => Promise<void>) => void` so parent can load a saved hike into the preview.
  */
 
 type UploadState = "idle" | "parsing" | "preview" | "saving" | "saved" | "error";
+
+type TrackUploaderProps = {
+  registerLoad?: (fn: (hikeId: string) => Promise<void>) => void;
+};
 
 // ----- Palette & Tile layers -----
 const PALETTE = ["#e74c3c", "#f39c12", "#27ae60", "#2980b9", "#8e44ad", "#c0392b", "#d35400", "#16a085"];
@@ -61,8 +81,7 @@ function Toast({ message, show, onClose }: { message: string; show: boolean; onC
   );
 }
 
-// ----- Component -----
-export default function TrackUploader(): JSX.Element {
+export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX.Element {
   const [RL, setRL] = useState<any | null>(null);
   const [state, setState] = useState<UploadState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +127,9 @@ export default function TrackUploader(): JSX.Element {
 
     // generate previews (revoke previous first)
     setImagePreviews(prev => {
-      prev.forEach(u => URL.revokeObjectURL(u));
+      prev.forEach(u => {
+        try { URL.revokeObjectURL(u); } catch {}
+      });
       return arr.map(f => URL.createObjectURL(f));
     });
   }, []);
@@ -116,7 +137,7 @@ export default function TrackUploader(): JSX.Element {
   useEffect(() => {
     return () => {
       // cleanup previews on unmount
-      imagePreviews.forEach(u => URL.revokeObjectURL(u));
+      imagePreviews.forEach(u => { try { URL.revokeObjectURL(u); } catch {} });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // only on unmount
@@ -436,11 +457,12 @@ export default function TrackUploader(): JSX.Element {
   const clearAll = useCallback(() => {
     setDayTracks([]); setCombinedGeojson(null); setCombinedStats(null); setFileNameList([]); setState("idle");
     // revoke previews
-    imagePreviews.forEach(u => URL.revokeObjectURL(u));
+    imagePreviews.forEach(u => { try { URL.revokeObjectURL(u); } catch {} });
     setImagePreviews([]);
     setImageFiles([]);
     setTitle("");
     setDescriptionMd("");
+    setSelectedHikeId(null);
   }, [imagePreviews]);
 
   // ----- Updated saveAll: delegate to saveAllWithStorage helper -----
@@ -504,6 +526,186 @@ export default function TrackUploader(): JSX.Element {
       forceTileRedraw(mapRef.current);
     } catch (e) { console.warn("fitBounds failed:", e); }
   }, [dayTracks]);
+
+  // -------------------------------------------------------------------------
+  // loadHike: this is registered with parent via registerLoad so parent can ask
+  // the uploader to load a saved hike into the preview map.
+  // -------------------------------------------------------------------------
+  const [selectedHikeId, setSelectedHikeId] = useState<string | null>(null);
+
+  const loadHike = useCallback(async (hikeId: string) => {
+    try {
+      setState("parsing");
+      setError(null);
+      setSelectedHikeId(hikeId);
+
+      const user = getAuth().currentUser;
+      if (!user) throw new Error("Not signed in");
+
+      const docRef = doc(db, "users", user.uid, "hikes", hikeId);
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) throw new Error("Hike not found");
+
+      const data: any = docSnap.data();
+
+      // Title and description
+      setTitle(data.title || "");
+      setDescriptionMd(data.descriptionMd || "");
+
+      // If days and combinedUrl are available, reconstruct DayTrack array using minimal fields + fetch per-day geojson URLs if present
+      let loadedDayTracks: DayTrack[] = [];
+      let loadedCombined: FeatureCollection<Geometry> | null = null;
+      if (Array.isArray(data.days) && data.days.length > 0) {
+        // If per-day geojsonUrl are present in days, fetch them; otherwise rely on stats only (and maybe combinedUrl)
+        const storage = getStorage();
+        for (let i = 0; i < data.days.length; i++) {
+          const d = data.days[i];
+          let geojson: FeatureCollection<Geometry> | null = null;
+          try {
+            const possibleUrl = d.geojsonUrl ?? d.geojson ?? null;
+            if (possibleUrl && typeof possibleUrl === "string") {
+              if (possibleUrl.startsWith("gs://") || possibleUrl.includes("/o/")) {
+                try {
+                  const ref = storageRef(storage, possibleUrl.replace(/^gs:\/\//, ""));
+                  const dl = await getDownloadURL(ref);
+                  const resp = await fetch(dl);
+                  geojson = await resp.json();
+                } catch (e) {
+                  console.warn("failed to resolve storage path for day geojson:", e);
+                }
+              } else {
+                try {
+                  const resp = await fetch(possibleUrl);
+                  geojson = await resp.json();
+                } catch (e) {
+                  console.warn("failed to fetch day geojson url:", e);
+                }
+              }
+            }
+          } catch (e) {
+            console.warn("error fetching per-day geojson:", e);
+          }
+
+          const fc = geojson ?? { type: "FeatureCollection", features: [] } as FeatureCollection<Geometry>;
+          loadedDayTracks.push({
+            id: d.id ?? `saved-${hikeId}-${i}`,
+            name: d.name ?? `Day ${i+1}`,
+            geojson: fc,
+            stats: d.stats ?? computeStats(fc),
+            color: d.color ?? PALETTE[i % PALETTE.length],
+            visible: typeof d.visible === "boolean" ? d.visible : true,
+            originalFile: undefined,
+          });
+        }
+      }
+
+      // attempt to load combined geojson if combinedUrl present
+      if (data.combinedUrl && typeof data.combinedUrl === "string") {
+        try {
+          const combinedUrl = data.combinedUrl;
+          const storage = getStorage();
+          if (combinedUrl.startsWith("gs://") || combinedUrl.includes("/o/")) {
+            const ref = storageRef(storage, combinedUrl.replace(/^gs:\/\//, ""));
+            const dl = await getDownloadURL(ref);
+            const resp = await fetch(dl);
+            loadedCombined = await resp.json();
+          } else {
+            const resp = await fetch(combinedUrl);
+            loadedCombined = await resp.json();
+          }
+        } catch (e) {
+          console.warn("failed to load combinedGeojsonUrl:", e);
+        }
+      }
+
+      // If we have no dayTracks (geojson missing), but combined is present, split combined into parts (features)
+      if ((!loadedDayTracks || loadedDayTracks.length === 0) && loadedCombined) {
+        const features = loadedCombined.features || [];
+        for (let i = 0; i < features.length; i++) {
+          const feat = features[i];
+          const singleFc: FeatureCollection<Geometry> = { type: "FeatureCollection", features: [feat] };
+          const stats = computeStats(singleFc);
+          loadedDayTracks.push({
+            id: `${hikeId}-feat-${i}`,
+            name: `Part ${i+1}`,
+            geojson: singleFc,
+            stats: { distance_m: stats.distance_m, elevation: stats.elevation, bounds: stats.bounds },
+            color: PALETTE[i % PALETTE.length],
+            visible: true,
+            originalFile: undefined,
+          });
+        }
+      }
+
+      // set states
+      setDayTracks(loadedDayTracks);
+      setCombinedGeojson(loadedCombined ?? mergeDays(loadedDayTracks));
+      setCombinedStats(loadedCombined ? computeStats(loadedCombined) : computeStats(mergeDays(loadedDayTracks)));
+
+      // images handling: either direct URLs in doc (images array) or storage paths
+      const previews: string[] = [];
+      try {
+        const storage = getStorage();
+        if (Array.isArray(data.images) && data.images.length) {
+          for (const im of data.images) {
+            if (!im) continue;
+            const maybeUrl = im.url ?? im.path ?? null;
+            if (!maybeUrl) continue;
+            try {
+              if (maybeUrl.startsWith("gs://") || maybeUrl.includes("/o/")) {
+                const ref = storageRef(storage, maybeUrl.replace(/^gs:\/\//, ""));
+                const dl = await getDownloadURL(ref);
+                previews.push(dl);
+              } else {
+                previews.push(maybeUrl);
+              }
+            } catch (e) {
+              console.warn("image fetch failed for", maybeUrl, e);
+            }
+          }
+        }
+      } catch (e) { console.warn("image preview load error", e); }
+      // revoke old previews
+      imagePreviews.forEach(u => { try { URL.revokeObjectURL(u); } catch {} });
+      setImagePreviews(previews);
+      setImageFiles([]); // we don't have local File objects for previously uploaded images
+
+      // fit map to loaded bounds
+      setTimeout(() => {
+        const map = mapRef.current;
+        try {
+          const ext = getCombinedExtentFromDayTracks(loadedDayTracks);
+          if (map && ext) {
+            (map as any).fitBounds([ext.sw, ext.ne], { padding: [24, 24], maxZoom: 16 });
+            forceTileRedraw(map);
+          }
+        } catch (e) { console.warn("fit after load failed", e); }
+      }, 200);
+
+      setState("preview");
+      setToastMsg("Hike loaded");
+      setToastShow(true);
+    } catch (err) {
+      console.error("loadHike error", err);
+      setError(err instanceof Error ? err.message : String(err));
+      setState("error");
+      setToastMsg(`Failed to load hike: ${err instanceof Error ? err.message : String(err)}`);
+      setToastShow(true);
+    }
+  }, [imagePreviews]);
+
+  // Register loadHike with parent when provided
+  useEffect(() => {
+    if (typeof registerLoad === "function") {
+      registerLoad(loadHike);
+      return () => {
+        // unregister: set to a noop to avoid parent calling a stale fn
+        registerLoad(async () => {});
+      };
+    }
+    // if no register function, do nothing
+    return;
+  }, [registerLoad, loadHike]);
 
   // ----- RENDER -----
   return (
