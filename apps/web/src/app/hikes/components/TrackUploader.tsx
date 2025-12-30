@@ -20,6 +20,7 @@ import { db } from "@/lib/firebase";
 import { gpx as parseGpx, kml as parseKml } from "togeojson";
 import type { Map as LeafletMap } from "leaflet";
 import ClientFileInput from "@/app/hikes/components/ClientFileInput"; // ensure this exists (client-only picker)
+import { useMap } from "react-leaflet"; // top-level import (client-only file ok)
 
 // NEW: import helper to save hikes with Storage + Firestore
 import { saveAllWithStorage } from "../lib/hikeUploader";
@@ -53,6 +54,20 @@ const TILE_LAYERS = [
   { id: "stamen-toner", name: "Stamen Toner", url: "https://stamen-tiles.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", options: { maxZoom: 20, tileSize: 256 } },
 ];
 
+function MapSetter({ onReady }: { onReady: (map: any) => void }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!map) return;
+    try {
+      onReady(map);
+    } catch (e) {
+      console.warn("MapSetter onReady failed", e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map]);
+  return null;
+}
+
 // ----- Toast helper (small inline) -----
 function Toast({ message, show, onClose }: { message: string; show: boolean; onClose: () => void }) {
   useEffect(() => {
@@ -81,6 +96,69 @@ function Toast({ message, show, onClose }: { message: string; show: boolean; onC
   );
 }
 
+// Convert EXIF GPS tag values into decimal degrees.
+// Accepts the expanded tags object (or partial subset) and returns { lat, lon } or null.
+function gpsToDecimal(gps: any): { lat: number; lon: number } | null {
+  try {
+    const latVals = gps.GPSLatitude?.description || gps.GPSLatitude;
+    const latRef = gps.GPSLatitudeRef?.description || gps.GPSLatitudeRef?.value || gps.GPSLatitudeRef;
+    const lonVals = gps.GPSLongitude?.description || gps.GPSLongitude;
+    const lonRef = gps.GPSLongitudeRef?.description || gps.GPSLongitudeRef?.value || gps.GPSLongitudeRef;
+
+    if (!latVals || !lonVals) return null;
+
+    const parseArr = (v: any) => {
+      if (Array.isArray(v)) return v.map((x) => (typeof x === "object" && x.value ? Number(x.value) : Number(x)));
+      if (typeof v === "string") return v.split(",").map(Number);
+      return null;
+    };
+
+    const la = parseArr(latVals);
+    const lo = parseArr(lonVals);
+    if (!la || !lo) return null;
+
+    const lat = la[0] + (la[1] || 0) / 60 + (la[2] || 0) / 3600;
+    const lon = lo[0] + (lo[1] || 0) / 60 + (lo[2] || 0) / 3600;
+
+    const latSign = (String(latRef || "").toUpperCase() === "S") ? -1 : 1;
+    const lonSign = (String(lonRef || "").toUpperCase() === "W") ? -1 : 1;
+
+    return { lat: lat * latSign, lon: lon * lonSign };
+  } catch (e) {
+    return null;
+  }
+}
+
+// Extract GPS EXIF from a local File object (best-effort).
+async function extractExifFromFile(file: File): Promise<{ lat: number; lon: number } | null> {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const ExifReader = (await import("exifreader")).default ?? (await import("exifreader"));
+    const tags = ExifReader.load(arrayBuffer, { expanded: true });
+    const gps = tags?.gps || tags;
+    return gpsToDecimal(gps || {});
+  } catch (e) {
+    console.warn("Failed to extract EXIF from file", e);
+    return null;
+  }
+}
+
+// Extract GPS EXIF from a remote image URL (best-effort).
+async function extractExifFromUrl(url: string): Promise<{ lat: number; lon: number } | null> {
+  try {
+    const resp = await fetch(url, { mode: "cors" });
+    if (!resp.ok) throw new Error("fetch failed");
+    const arrayBuffer = await resp.arrayBuffer();
+    const ExifReader = (await import("exifreader")).default ?? (await import("exifreader"));
+    const tags = ExifReader.load(arrayBuffer, { expanded: true });
+    const gps = tags?.gps || tags;
+    return gpsToDecimal(gps || {});
+  } catch (e) {
+    console.warn("Failed to extract EXIF from url (CORS or not an image):", e);
+    return null;
+  }
+}
+
 export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX.Element {
   const [RL, setRL] = useState<any | null>(null);
   const [state, setState] = useState<UploadState>("idle");
@@ -101,6 +179,7 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
+  const mapReadyRef = useRef<boolean>(false);
 
   const [directFallback, setDirectFallback] = useState(false);
   const directDivId = "direct-leaflet-fallback";
@@ -108,6 +187,38 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
   // toast state
   const [toastMsg, setToastMsg] = useState<string>("");
   const [toastShow, setToastShow] = useState<boolean>(false);
+
+  // set Leaflet default icon URLs (dynamic import; client-only)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let mounted = true;
+    (async () => {
+      try {
+        const Lmod = await import("leaflet");
+        const L: any = (Lmod as any).default ?? Lmod;
+
+        const m1mod = await import("leaflet/dist/images/marker-icon.png");
+        const m2mod = await import("leaflet/dist/images/marker-icon-2x.png");
+        const shadowMod = await import("leaflet/dist/images/marker-shadow.png");
+
+        const markerUrl = (m1mod && (m1mod.default ?? (m1mod as any).src)) || "/leaflet/marker-icon.png";
+        const marker2x = (m2mod && (m2mod.default ?? (m2mod as any).src)) || "/leaflet/marker-icon-2x.png";
+        const shadowUrl = (shadowMod && (shadowMod.default ?? (shadowMod as any).src)) || "/leaflet/marker-shadow.png";
+
+        if (!mounted) return;
+
+        L.Icon.Default.mergeOptions({
+          iconRetinaUrl: marker2x,
+          iconUrl: markerUrl,
+          shadowUrl: shadowUrl,
+        });
+      } catch (e) {
+        console.warn("Failed to set Leaflet default icon URLs (dynamic import)", e);
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, []);
 
   // dynamic import react-leaflet
   useEffect(() => {
@@ -170,84 +281,108 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
   function forceTileRedraw(map: any) {
     if (!map) return;
     try {
-      if (wrapperRef.current) {
-        const r = wrapperRef.current.getBoundingClientRect();
-        wrapperRef.current.style.width = `${Math.round(r.width)}px`;
-        wrapperRef.current.style.height = `${Math.round(r.height)}px`;
-        wrapperRef.current.style.overflow = "hidden";
-      }
-
-      try { map.invalidateSize(true); } catch {}
-      setTimeout(() => { try { map.invalidateSize(true); } catch {} }, 120);
-
-      map.eachLayer((layer: any) => {
-        try {
-          if (typeof layer.redraw === "function") layer.redraw();
-          if (typeof layer.setUrl === "function" && layer._url) layer.setUrl(layer._url);
-        } catch (e) {}
-      });
-
+      // basic, safe approach: invalidate + delayed invalidation
+      try { map.invalidateSize(true); } catch (e) { console.warn("invalidateSize failed", e); }
       setTimeout(() => {
-        try {
-          map.invalidateSize(true);
-          map.eachLayer((layer: any) => {
-            try { if (typeof layer.redraw === "function") layer.redraw(); } catch (e) {}
-          });
-        } catch (e) {}
-        if (wrapperRef.current) {
-          wrapperRef.current.style.width = "";
-          wrapperRef.current.style.height = "";
-          wrapperRef.current.style.overflow = "";
-        }
-      }, 500);
-    } catch (e) { console.warn("forceTileRedraw error", e); }
+        try { map.invalidateSize(true); } catch (e) { console.warn("delayed invalidateSize failed", e); }
+      }, 200);
+    } catch (e) {
+      console.warn("forceTileRedraw error", e);
+    }
   }
 
-  const onMapCreated = useCallback((mapInstance: LeafletMap) => {
+  async function addMarker(
+    lat: number,
+    lon: number,
+    url: string,
+    opts?: {
+      title?: string;
+      open?: boolean; // whether to auto-open the popup
+    }
+  ) {
+    const map = mapRef.current as any;
+    if (!map) {
+      console.warn("addMarker: map not ready");
+      return;
+    }
+
+    // load Leaflet dynamically (client-safe)
+    const Lmod = await import("leaflet");
+    const L: any = (Lmod as any).default ?? Lmod;
+
+    const marker = L.marker([lat, lon]).addTo(map);
+
+    const popupHtml = `
+      <div style="font-size:14px;">
+        ${opts?.title ? `<strong>${opts.title}</strong><br/>` : ""}
+        <a href="${url}" target="_blank" rel="noopener noreferrer">
+          ${url}
+        </a>
+      </div>
+    `;
+
+    marker.bindPopup(popupHtml);
+
+    if (opts?.open) {
+      marker.openPopup();
+    }
+
+    return marker;
+  }
+
+  // robust onMapCreated
+  const onMapCreated = useCallback((mapInstance: any) => {
     mapRef.current = mapInstance;
+    mapReadyRef.current = true;
+
     // expose for debugging
     // @ts-ignore
     window._fortAmazingMap = mapInstance;
 
-    setTimeout(() => {
-      try { mapInstance.invalidateSize(); } catch {}
-      if (combinedGeojson) {
-        try {
-          const bbox = turf.bbox(combinedGeojson);
-          const b: [[number, number], [number, number]] = [[bbox[1], bbox[0]], [bbox[3], bbox[2]]];
-          mapInstance.fitBounds(b as any, { padding: [20, 20], maxZoom: 15 });
-          forceTileRedraw(mapInstance);
-        } catch (e) {}
-      }
-    }, 200);
-
-    // gentle wheel handler
     try {
-      const el = mapInstance.getContainer();
-      try { el.removeEventListener("wheel", (el as any)._wheelHandler); } catch {}
-      const handler = (e: WheelEvent) => {
-        e.preventDefault();
-        const raw = e.deltaY;
-        const step = 0.45;
-        const sign = Math.sign(raw);
-        const newZoom = mapInstance.getZoom() - sign * step;
-        const clamped = Math.max(mapInstance.getMinZoom(), Math.min(mapInstance.getMaxZoom(), newZoom));
-        mapInstance.setZoom(clamped);
-      };
-      (el as any)._wheelHandler = handler;
-      el.addEventListener("wheel", handler, { passive: false });
-    } catch (e) {}
+      setTimeout(() => {
+        try { mapInstance.invalidateSize(); } catch (e) {}
+        if (combinedGeojson) {
+          try {
+            const bbox = turf.bbox(combinedGeojson);
+            const b: [[number, number], [number, number]] = [[bbox[1], bbox[0]], [bbox[3], bbox[2]]];
+            mapInstance.fitBounds(b as any, { padding: [20, 20], maxZoom: 15 });
+            forceTileRedraw(mapInstance);
+          } catch (e) { console.warn("fitBounds in onMapCreated failed", e); }
+        }
+      }, 120);
+    } catch (e) { console.warn("onMapCreated init error", e); }
   }, [combinedGeojson]);
 
-  async function waitForMap(timeoutMs = 5000, intervalMs = 200) {
+  // helper to wait for map (useful in other async code)
+  async function waitForMap(timeoutMs = 5000, intervalMs = 150) {
     const start = Date.now();
-    return new Promise<LeafletMap | null>((resolve) => {
+    return new Promise<any | null>((resolve) => {
+      if (mapReadyRef.current && mapRef.current) return resolve(mapRef.current);
       const iv = window.setInterval(() => {
-        if (mapRef.current) { clearInterval(iv); resolve(mapRef.current); }
-        else if (Date.now() - start > timeoutMs) { clearInterval(iv); resolve(null); }
+        if (mapReadyRef.current && mapRef.current) {
+          clearInterval(iv);
+          resolve(mapRef.current);
+        } else if (Date.now() - start > timeoutMs) {
+          clearInterval(iv);
+          resolve(null);
+        }
       }, intervalMs);
     });
   }
+
+  // small debug effect: logs when mapRef becomes available
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (mapRef.current) {
+        console.log("[TrackUploader] mapRef is now set:", mapRef.current);
+        clearInterval(id);
+      }
+    }, 200);
+    // stop after a while
+    setTimeout(() => clearInterval(id), 5000);
+    return () => clearInterval(id);
+  }, []);
 
   // fallback direct leaflet creation (unchanged)
   useEffect(() => {
@@ -269,6 +404,8 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
         forceTileRedraw(directMap);
         // @ts-ignore
         window._directLeaflet = directMap;
+        mapRef.current = directMap;
+        mapReadyRef.current = true;
       } catch (e) { console.error("direct fallback failed", e); }
     })();
     return () => { try { if (directMap) directMap.remove(); } catch {} };
@@ -276,15 +413,11 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
 
   // ----- FILE PARSING (robust for multiple files & multi-track files) -----
   const handleFiles = useCallback(async (filesOrList: FileList | File[] | null) => {
-    console.log("ENTER handleFiles", filesOrList);
-
     setError(null);
     if (!filesOrList) return;
     setState("parsing");
 
     const files: File[] = (filesOrList as FileList).item ? Array.from(filesOrList as FileList) : (filesOrList as File[]);
-    console.log("DEBUG handleFiles - incoming files:", files.map(f => f.name));
-
     if (files.length === 0) { setState("idle"); return; }
 
     try {
@@ -294,7 +427,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
       for (let i = 0; i < files.length; i++) {
         const f = files[i];
         names.push(f.name);
-        console.log(`DEBUG parsing file ${i}:`, f.name);
         const text = await f.text();
         const ext = (f.name.split(".").pop() || "").toLowerCase();
         const parser = new DOMParser();
@@ -308,7 +440,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
           else throw new Error(`Unsupported file type for ${f.name}`);
         }
 
-        // If there are no features, try to convert <wpt> nodes into points
         if (!gjson.features || gjson.features.length === 0) {
           const wpts = Array.from(xml.getElementsByTagName("wpt") || []);
           if (wpts.length > 0) {
@@ -322,20 +453,16 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
               };
             });
             gjson = { type: "FeatureCollection", features: wptFeatures } as FeatureCollection<Geometry>;
-            console.log(`DEBUG: file ${f.name} had ${wptFeatures.length} waypoints — converted to Point features.`);
           }
         }
 
-        // ---- New: Split multi-feature track files into separate DayTrack entries ----
         const features = gjson.features || [];
-        // Check if this file looks like a multi-track/multi-segment GPX (multiple LineString/MultiLineString features)
         const hasMultipleLineFeatures = features.length > 1 && features.some((ft) => {
           const t = ft.geometry?.type;
           return t === "LineString" || t === "MultiLineString";
         });
 
         if (hasMultipleLineFeatures) {
-          // Create one DayTrack per feature (attach originalFile so we can upload the source)
           for (let fi = 0; fi < features.length; fi++) {
             const feat = features[fi];
             const singleFc: FeatureCollection<Geometry> = { type: "FeatureCollection", features: [feat] };
@@ -353,7 +480,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
             parsedDays.push(day);
           }
         } else {
-          // Keep as a single DayTrack (one file => one day)
           const stats = computeStats(gjson);
           const color = PALETTE[parsedDays.length % PALETTE.length] ?? "#3388ff";
           const day: DayTrack = {
@@ -367,8 +493,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
           };
           parsedDays.push(day);
         }
-
-        console.log(`DEBUG parsed ${f.name}: features=${gjson.features ? gjson.features.length : 0}`);
       }
 
       // expose debug
@@ -416,7 +540,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
   const onNativeInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
     handleFiles(e.target.files);
-    // reset value so same file can be re-selected if needed
     e.target.value = "";
   }, [handleFiles]);
 
@@ -425,7 +548,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
     handleFiles(e.dataTransfer.files);
   }, [handleFiles]);
 
-  // native picker wrapper (not required when using ClientFileInput, but kept for backward compat)
   const openNativePicker = useCallback(async () => {
     try {
       if ((window as any).showOpenFilePicker) {
@@ -447,7 +569,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
     } catch (err) {
       console.warn("showOpenFilePicker failed, falling back to input", err);
     }
-    // fallback: do nothing here — ClientFileInput handles it
   }, [handleFiles]);
 
   const toggleDayVisible = useCallback((id: string) => {
@@ -456,7 +577,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
 
   const clearAll = useCallback(() => {
     setDayTracks([]); setCombinedGeojson(null); setCombinedStats(null); setFileNameList([]); setState("idle");
-    // revoke previews
     imagePreviews.forEach(u => { try { URL.revokeObjectURL(u); } catch {} });
     setImagePreviews([]);
     setImageFiles([]);
@@ -465,7 +585,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
     setSelectedHikeId(null);
   }, [imagePreviews]);
 
-  // ----- Updated saveAll: delegate to saveAllWithStorage helper -----
   const saveAll = useCallback(async () => {
     setState("saving"); setError(null);
     try {
@@ -483,13 +602,8 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
       console.log("Hike saved:", result.hikeId, result);
       setState("saved");
 
-      // show toast
       setToastMsg(`Hike saved — id: ${result.hikeId}`);
       setToastShow(true);
-
-      // optionally reset uploader (comment out if you want to keep loaded data)
-      // clearAll();
-
     } catch (err) {
       console.error("save error", err);
       setError(err instanceof Error ? err.message : String(err));
@@ -499,7 +613,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
     }
   }, [dayTracks, combinedGeojson, fileNameList, title, descriptionMd, imageFiles, clearAll]);
 
-  // ----- EXTENT helpers & auto-fit -----
   function getCombinedExtentFromDayTracks(days: DayTrack[] | null) {
     if (!days || days.length === 0) return null;
     const combined = { type: "FeatureCollection", features: days.flatMap(d => d.geojson.features) } as FeatureCollection;
@@ -519,7 +632,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
     const ext = getCombinedExtentFromDayTracks(dayTracks);
     // @ts-ignore
     window._combinedExtent = ext ?? null;
-    console.log('dayTracks changed, fitting to extent:', dayTracks.map(d=>d.name), ext);
     if (!ext || !mapRef.current) return;
     try {
       (mapRef.current as any).fitBounds([ext.sw, ext.ne], { padding: [24, 24], maxZoom: 16 });
@@ -556,7 +668,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
       let loadedDayTracks: DayTrack[] = [];
       let loadedCombined: FeatureCollection<Geometry> | null = null;
       if (Array.isArray(data.days) && data.days.length > 0) {
-        // If per-day geojsonUrl are present in days, fetch them; otherwise rely on stats only (and maybe combinedUrl)
         const storage = getStorage();
         for (let i = 0; i < data.days.length; i++) {
           const d = data.days[i];
@@ -618,7 +729,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
         }
       }
 
-      // If we have no dayTracks (geojson missing), but combined is present, split combined into parts (features)
       if ((!loadedDayTracks || loadedDayTracks.length === 0) && loadedCombined) {
         const features = loadedCombined.features || [];
         for (let i = 0; i < features.length; i++) {
@@ -665,10 +775,9 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
           }
         }
       } catch (e) { console.warn("image preview load error", e); }
-      // revoke old previews
       imagePreviews.forEach(u => { try { URL.revokeObjectURL(u); } catch {} });
       setImagePreviews(previews);
-      setImageFiles([]); // we don't have local File objects for previously uploaded images
+      setImageFiles([]);
 
       // fit map to loaded bounds
       setTimeout(() => {
@@ -699,11 +808,9 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
     if (typeof registerLoad === "function") {
       registerLoad(loadHike);
       return () => {
-        // unregister: set to a noop to avoid parent calling a stale fn
         registerLoad(async () => {});
       };
     }
-    // if no register function, do nothing
     return;
   }, [registerLoad, loadHike]);
 
@@ -729,7 +836,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
           background: state === "parsing" ? "#fafafa" : "white",
         }}
       >
-        {/* Hidden native input (used by Upload files button) */}
         <input
           ref={fileInputRef}
           type="file"
@@ -740,22 +846,17 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
         />
 
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-          {/* ClientFileInput (existing client-only picker) */}
           <ClientFileInput
             onFiles={(filesOrList) => {
-              console.log("ClientFileInput -> onFiles called, filesOrList:", filesOrList);
               const filesArray: File[] = (filesOrList && (filesOrList as FileList).item) ? Array.from(filesOrList as FileList) : (filesOrList as File[]);
-              console.log("ClientFileInput -> normalized filesArray:", filesArray?.map(f=>f.name));
               handleFiles(filesOrList);
             }}
             buttonLabel="Choose GPX files"
           />
 
-          {/* NEW: explicit Upload button that opens native file picker */}
           <button
             type="button"
             onClick={() => {
-              // prefer native picker input; if not available, fallback to showOpenFilePicker in openNativePicker
               if (fileInputRef.current) {
                 fileInputRef.current.click();
               } else {
@@ -799,7 +900,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
           )}
         </div>
 
-        {/* Title */}
         <div style={{ marginTop: 12 }}>
           <label style={{ display: "block", fontWeight: 600 }}>Hike title</label>
           <input
@@ -811,7 +911,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
           />
         </div>
 
-        {/* Description (markdown) */}
         <div style={{ marginTop: 8 }}>
           <label style={{ display: "block", fontWeight: 600 }}>Description (Markdown)</label>
           <textarea
@@ -823,7 +922,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
           />
         </div>
 
-        {/* Images */}
         <div style={{ marginTop: 8 }}>
           <label style={{ display: "block", fontWeight: 600 }}>Images</label>
           <input type="file" accept="image/*" multiple onChange={onImageInputChange} />
@@ -845,7 +943,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
         {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
       </div>
 
-
       {/* right: map + preview */}
       <div style={{ flex: 1 }}>
         <div style={{ marginBottom: 8, display: "flex", gap: 8, alignItems: "center" }}>
@@ -853,7 +950,6 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
           {fileNameList.length > 0 && <span style={{ marginLeft: 12, color: "#666" }}>{fileNameList.join(", ")}</span>}
         </div>
 
-        {/* basemap controls */}
         <div style={{ marginBottom: 8, display: "flex", gap: 8, alignItems: "center" }}>
           <label style={{ fontWeight: 600 }}>Basemap:</label>
           <select value={activeTileId} onChange={(e) => setActiveTileId(e.target.value)}>
@@ -897,6 +993,7 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
               zoom={10}
               scrollWheelZoom={true}
             >
+              <MapSetter onReady={onMapCreated} />
               {/* Basemap */}
               {/* @ts-ignore */}
               <RL.TileLayer
