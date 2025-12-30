@@ -12,6 +12,7 @@ import ClientFileInput from "@/app/hikes/components/ClientFileInput"; // ensure 
 
 // NEW: import helper to save hikes with Storage + Firestore
 import { saveAllWithStorage } from "../lib/hikeUploader";
+import { DayTrack } from "../lib/geo";
 
 /**
  * TrackUploader - multi-file GPX/KML uploader and preview
@@ -20,22 +21,6 @@ import { saveAllWithStorage } from "../lib/hikeUploader";
  * - compute combined extents and auto-fit
  * - per-day layers + combined overlay
  */
-
-// ----- Types -----
-// NOTE: originalFile is optional and preserved so the upload helper can send the raw GPX/KML to Storage
-type DayTrack = {
-  id: string;
-  name: string;
-  geojson: FeatureCollection<Geometry>;
-  stats: {
-    distance_m: number;
-    elevation: { min: number; max: number } | null;
-    bounds: [number, number, number, number] | null;
-  };
-  color: string;
-  visible: boolean;
-  originalFile?: File;
-};
 
 type UploadState = "idle" | "parsing" | "preview" | "saving" | "saved" | "error";
 
@@ -48,6 +33,34 @@ const TILE_LAYERS = [
   { id: "stamen-toner", name: "Stamen Toner", url: "https://stamen-tiles.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", options: { maxZoom: 20, tileSize: 256 } },
 ];
 
+// ----- Toast helper (small inline) -----
+function Toast({ message, show, onClose }: { message: string; show: boolean; onClose: () => void }) {
+  useEffect(() => {
+    if (!show) return;
+    const t = setTimeout(() => onClose(), 4000);
+    return () => clearTimeout(t);
+  }, [show, onClose]);
+
+  if (!show) return null;
+  return (
+    <div style={{
+      position: "fixed",
+      top: 20,
+      right: 20,
+      zIndex: 9999,
+      background: "rgba(0,0,0,0.85)",
+      color: "white",
+      padding: "10px 14px",
+      borderRadius: 8,
+      boxShadow: "0 6px 18px rgba(0,0,0,0.25)",
+      maxWidth: 360,
+      fontSize: 14,
+    }}>
+      {message}
+    </div>
+  );
+}
+
 // ----- Component -----
 export default function TrackUploader(): JSX.Element {
   const [RL, setRL] = useState<any | null>(null);
@@ -58,6 +71,11 @@ export default function TrackUploader(): JSX.Element {
   const [combinedGeojson, setCombinedGeojson] = useState<FeatureCollection<Geometry> | null>(null);
   const [combinedStats, setCombinedStats] = useState<{ distance_m: number; elevation: { min:number; max:number } | null; bounds: [number,number,number,number] | null } | null>(null);
   const [fileNameList, setFileNameList] = useState<string[]>([]);
+  const [title, setTitle] = useState<string>("");
+  const [descriptionMd, setDescriptionMd] = useState<string>("");
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [activeTileId, setActiveTileId] = useState<string>(TILE_LAYERS[0].id);
@@ -68,6 +86,10 @@ export default function TrackUploader(): JSX.Element {
   const [directFallback, setDirectFallback] = useState(false);
   const directDivId = "direct-leaflet-fallback";
 
+  // toast state
+  const [toastMsg, setToastMsg] = useState<string>("");
+  const [toastShow, setToastShow] = useState<boolean>(false);
+
   // dynamic import react-leaflet
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -77,6 +99,27 @@ export default function TrackUploader(): JSX.Element {
       .catch((err) => console.error("react-leaflet dynamic import failed:", err));
     return () => { mounted = false; };
   }, []);
+
+  // image input change handler
+  const onImageInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const arr = Array.from(e.target.files);
+    setImageFiles(arr);
+
+    // generate previews (revoke previous first)
+    setImagePreviews(prev => {
+      prev.forEach(u => URL.revokeObjectURL(u));
+      return arr.map(f => URL.createObjectURL(f));
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      // cleanup previews on unmount
+      imagePreviews.forEach(u => URL.revokeObjectURL(u));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // only on unmount
 
   // ----- helpers -----
   function computeStats(fc: FeatureCollection<Geometry>) {
@@ -392,23 +435,47 @@ export default function TrackUploader(): JSX.Element {
 
   const clearAll = useCallback(() => {
     setDayTracks([]); setCombinedGeojson(null); setCombinedStats(null); setFileNameList([]); setState("idle");
-  }, []);
+    // revoke previews
+    imagePreviews.forEach(u => URL.revokeObjectURL(u));
+    setImagePreviews([]);
+    setImageFiles([]);
+    setTitle("");
+    setDescriptionMd("");
+  }, [imagePreviews]);
 
   // ----- Updated saveAll: delegate to saveAllWithStorage helper -----
   const saveAll = useCallback(async () => {
     setState("saving"); setError(null);
     try {
-      // call helper that uploads original files (if present) and writes the hike document
-      const title = `Multi-day hike: ${fileNameList.join(", ")}`;
-      const { hikeId } = await saveAllWithStorage({ title, dayTracks, combinedGeojson });
-      console.log("Hike saved:", hikeId);
+      if (!dayTracks || dayTracks.length === 0) throw new Error("No tracks to save");
+      const chosenTitle = title && title.trim().length ? title.trim() : `Multi-day hike: ${fileNameList.join(", ")}`;
+      const result = await saveAllWithStorage({
+        title: chosenTitle,
+        descriptionMd,
+        imageFiles,
+        dayTracks,
+        combinedGeojson,
+        visibility: "private",
+      });
+
+      console.log("Hike saved:", result.hikeId, result);
       setState("saved");
+
+      // show toast
+      setToastMsg(`Hike saved — id: ${result.hikeId}`);
+      setToastShow(true);
+
+      // optionally reset uploader (comment out if you want to keep loaded data)
+      // clearAll();
+
     } catch (err) {
       console.error("save error", err);
       setError(err instanceof Error ? err.message : String(err));
       setState("error");
+      setToastMsg(`Save failed: ${err instanceof Error ? err.message : String(err)}`);
+      setToastShow(true);
     }
-  }, [dayTracks, combinedGeojson, fileNameList]);
+  }, [dayTracks, combinedGeojson, fileNameList, title, descriptionMd, imageFiles, clearAll]);
 
   // ----- EXTENT helpers & auto-fit -----
   function getCombinedExtentFromDayTracks(days: DayTrack[] | null) {
@@ -441,101 +508,140 @@ export default function TrackUploader(): JSX.Element {
   // ----- RENDER -----
   return (
     <div style={{ display: "flex", gap: 20 }}>
+      <Toast message={toastMsg} show={toastShow} onClose={() => setToastShow(false)} />
+
       {/* left: controls / file input */}
-      {/* left: controls / file input */}
-<div
-  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
-  onDrop={onDrop}
-  style={{
-    border: "2px dashed #ddd",
-    borderRadius: 8,
-    padding: 20,
-    width: 360,
-    minHeight: 220,
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "flex-start",
-    alignItems: "stretch",
-    background: state === "parsing" ? "#fafafa" : "white",
-  }}
->
-  {/* Hidden native input (used by Upload files button) */}
-  <input
-    ref={fileInputRef}
-    type="file"
-    accept=".gpx,.kml,application/gpx+xml,application/vnd.google-earth.kml+xml"
-    multiple
-    style={{ display: "none" }}
-    onChange={onNativeInputChange}
-  />
+      <div
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
+        onDrop={onDrop}
+        style={{
+          border: "2px dashed #ddd",
+          borderRadius: 8,
+          padding: 20,
+          width: 360,
+          minHeight: 220,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "flex-start",
+          alignItems: "stretch",
+          background: state === "parsing" ? "#fafafa" : "white",
+        }}
+      >
+        {/* Hidden native input (used by Upload files button) */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".gpx,.kml,application/gpx+xml,application/vnd.google-earth.kml+xml"
+          multiple
+          style={{ display: "none" }}
+          onChange={onNativeInputChange}
+        />
 
-  <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-    {/* ClientFileInput (existing client-only picker) */}
-    <ClientFileInput
-      onFiles={(filesOrList) => {
-        console.log("ClientFileInput -> onFiles called, filesOrList:", filesOrList);
-        const filesArray: File[] = (filesOrList && (filesOrList as FileList).item) ? Array.from(filesOrList as FileList) : (filesOrList as File[]);
-        console.log("ClientFileInput -> normalized filesArray:", filesArray?.map(f=>f.name));
-        handleFiles(filesOrList);
-      }}
-      buttonLabel="Choose GPX files"
-    />
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+          {/* ClientFileInput (existing client-only picker) */}
+          <ClientFileInput
+            onFiles={(filesOrList) => {
+              console.log("ClientFileInput -> onFiles called, filesOrList:", filesOrList);
+              const filesArray: File[] = (filesOrList && (filesOrList as FileList).item) ? Array.from(filesOrList as FileList) : (filesOrList as File[]);
+              console.log("ClientFileInput -> normalized filesArray:", filesArray?.map(f=>f.name));
+              handleFiles(filesOrList);
+            }}
+            buttonLabel="Choose GPX files"
+          />
 
-    {/* NEW: explicit Upload button that opens native file picker */}
-    <button
-      type="button"
-      onClick={() => {
-        // prefer native picker input; if not available, fallback to showOpenFilePicker in openNativePicker
-        if (fileInputRef.current) {
-          fileInputRef.current.click();
-        } else {
-          openNativePicker();
-        }
-      }}
-      aria-label="Upload GPX or KML files"
-      style={{
-        padding: "8px 12px",
-        borderRadius: 6,
-        border: "1px solid #ccc",
-        background: "#fff",
-        cursor: "pointer",
-      }}
-    >
-      Upload files
-    </button>
-  </div>
+          {/* NEW: explicit Upload button that opens native file picker */}
+          <button
+            type="button"
+            onClick={() => {
+              // prefer native picker input; if not available, fallback to showOpenFilePicker in openNativePicker
+              if (fileInputRef.current) {
+                fileInputRef.current.click();
+              } else {
+                openNativePicker();
+              }
+            }}
+            aria-label="Upload GPX or KML files"
+            style={{
+              padding: "8px 12px",
+              borderRadius: 6,
+              border: "1px solid #ccc",
+              background: "#fff",
+              cursor: "pointer",
+            }}
+          >
+            Upload files
+          </button>
+        </div>
 
-  <div style={{ marginTop: 8 }}>
-    <small>Status: {state}</small>
-  </div>
+        <div style={{ marginTop: 8 }}>
+          <small>Status: {state}</small>
+        </div>
 
-  <div style={{ marginTop: 12 }}>
-    <strong>Files</strong>
-    {fileNameList.length === 0 ? (
-      <div style={{ color: "#777", marginTop: 8 }}>No files selected — drag & drop multiple GPX/KML files here, or click Choose GPX files / Upload files.</div>
-    ) : (
-      <ol style={{ paddingLeft: 18 }}>
-        {dayTracks.map((d, idx) => (
-          <li key={d.id} style={{ marginBottom: 6 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <input type="checkbox" checked={d.visible} onChange={() => toggleDayVisible(d.id)} />
-              <span style={{ width: 12, height: 12, background: d.color, display: "inline-block", borderRadius: 3 }} />
-              <span style={{ marginLeft: 6 }}>{`Day ${idx+1}: ${d.name}`}</span>
-              <small style={{ marginLeft: "auto", color: "#666" }}>{(d.stats.distance_m/1000).toFixed(2)} km</small>
-            </label>
-          </li>
-        ))}
-      </ol>
-    )}
-  </div>
+        <div style={{ marginTop: 12 }}>
+          <strong>Files</strong>
+          {fileNameList.length === 0 ? (
+            <div style={{ color: "#777", marginTop: 8 }}>No files selected — drag & drop multiple GPX/KML files here, or click Choose GPX files / Upload files.</div>
+          ) : (
+            <ol style={{ paddingLeft: 18 }}>
+              {dayTracks.map((d, idx) => (
+                <li key={d.id} style={{ marginBottom: 6 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input type="checkbox" checked={d.visible} onChange={() => toggleDayVisible(d.id)} />
+                    <span style={{ width: 12, height: 12, background: d.color, display: "inline-block", borderRadius: 3 }} />
+                    <span style={{ marginLeft: 6 }}>{`Day ${idx+1}: ${d.name}`}</span>
+                    <small style={{ marginLeft: "auto", color: "#666" }}>{(d.stats.distance_m/1000).toFixed(2)} km</small>
+                  </label>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
 
-  <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-    <button onClick={saveAll} disabled={!dayTracks.length || state === "saving"}>Save hike</button>
-    <button onClick={clearAll} disabled={!dayTracks.length}>Clear</button>
-  </div>
+        {/* Title */}
+        <div style={{ marginTop: 12 }}>
+          <label style={{ display: "block", fontWeight: 600 }}>Hike title</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="My multi-day hike title..."
+            className="border p-2 rounded w-full"
+          />
+        </div>
 
-  {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
-</div>
+        {/* Description (markdown) */}
+        <div style={{ marginTop: 8 }}>
+          <label style={{ display: "block", fontWeight: 600 }}>Description (Markdown)</label>
+          <textarea
+            value={descriptionMd}
+            onChange={(e) => setDescriptionMd(e.target.value)}
+            placeholder="Add notes, route commentary, gear notes..."
+            rows={6}
+            className="border p-2 rounded w-full"
+          />
+        </div>
+
+        {/* Images */}
+        <div style={{ marginTop: 8 }}>
+          <label style={{ display: "block", fontWeight: 600 }}>Images</label>
+          <input type="file" accept="image/*" multiple onChange={onImageInputChange} />
+          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            {imagePreviews.map((src, i) => (
+              <div key={i} style={{ width: 120, height: 80, overflow: "hidden", borderRadius: 6, border: "1px solid #eee" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={src} alt={`preview-${i}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+          <button onClick={saveAll} disabled={!dayTracks.length || state === "saving"}>Save hike</button>
+          <button onClick={clearAll} disabled={!dayTracks.length}>Clear</button>
+        </div>
+
+        {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
+      </div>
 
 
       {/* right: map + preview */}
@@ -561,90 +667,85 @@ export default function TrackUploader(): JSX.Element {
         </div>
 
         <div
-  ref={wrapperRef}
-  style={{
-    height: 480,
-    borderRadius: 6,
-    overflow: "hidden",
-    border: "1px solid #eee",
-    position: "relative",
-  }}
->
-  {directFallback ? (
-    <div id={directDivId} style={{ height: "100%", width: "100%" }} />
-  ) : !RL ? (
-    <div style={{ padding: 20 }}>Loading map…</div>
-      ) : (
-        // @ts-ignore
-        <RL.MapContainer
-          whenCreated={onMapCreated}
+          ref={wrapperRef}
           style={{
-            height: "100%",
-            width: "100%",
-            position: "absolute",
-            left: 0,
-            top: 0,
+            height: 480,
+            borderRadius: 6,
+            overflow: "hidden",
+            border: "1px solid #eee",
+            position: "relative",
           }}
-          center={[-41.17, 174.09]}
-          zoom={10}
-          scrollWheelZoom={true}
         >
-          {/* Basemap */}
-          {/* @ts-ignore */}
-          <RL.TileLayer
-            key={activeTileId}
-            url={TILE_LAYERS.find((t) => t.id === activeTileId)!.url}
-            {...(TILE_LAYERS.find((t) => t.id === activeTileId)!.options || {})}
-          />
-
-          {/* ----------------------------- */}
-          {/* 1) Combined — draw UNDER days */}
-          {/* ----------------------------- */}
-          {combinedGeojson && (
+          {directFallback ? (
+            <div id={directDivId} style={{ height: "100%", width: "100%" }} />
+          ) : !RL ? (
+            <div style={{ padding: 20 }}>Loading map…</div>
+          ) : (
             // @ts-ignore
-            <RL.GeoJSON
-              data={combinedGeojson}
-              style={() => ({
-                color: "#ff5722",
-                weight: 4,
-                opacity: 0.30,   // lighter so day colors show clearly
-              })}
-            />
-          )}
+            <RL.MapContainer
+              whenCreated={onMapCreated}
+              style={{
+                height: "100%",
+                width: "100%",
+                position: "absolute",
+                left: 0,
+                top: 0,
+              }}
+              center={[-41.17, 174.09]}
+              zoom={10}
+              scrollWheelZoom={true}
+            >
+              {/* Basemap */}
+              {/* @ts-ignore */}
+              <RL.TileLayer
+                key={activeTileId}
+                url={TILE_LAYERS.find((t) => t.id === activeTileId)!.url}
+                {...(TILE_LAYERS.find((t) => t.id === activeTileId)!.options || {})}
+              />
 
-          {/* ----------------------------------------------- */}
-          {/* 2) Each day — style as a function, full-opacity */}
-          {/* ----------------------------------------------- */}
-          {dayTracks.map(
-            (d) =>
-              d.visible && (
+              {/* Combined */}
+              {combinedGeojson && (
                 // @ts-ignore
                 <RL.GeoJSON
-                  key={d.id}
-                  data={d.geojson}
+                  data={combinedGeojson}
                   style={() => ({
-                    color: d.color,
-                    weight: 5,
-                    opacity: 1.0,
+                    color: "#ff5722",
+                    weight: 4,
+                    opacity: 0.30,
                   })}
-                  // @ts-ignore - ensures colored circle markers for waypoint/point features
-                  pointToLayer={(_feature: any, latlng: any) => {
-                    return RL.circleMarker(latlng, {
-                      radius: 5,
-                      fill: true,
-                      fillOpacity: 0.9,
-                      color: d.color,
-                      weight: 1,
-                      opacity: 0.95,
-                    });
-                  }}
                 />
-              )
-          )}
-        </RL.MapContainer>
-      )}
-    </div>
+              )}
 
+              {/* Days */}
+              {dayTracks.map(
+                (d) =>
+                  d.visible && (
+                    // @ts-ignore
+                    <RL.GeoJSON
+                      key={d.id}
+                      data={d.geojson}
+                      style={() => ({
+                        color: d.color,
+                        weight: 5,
+                        opacity: 1.0,
+                      })}
+                      // @ts-ignore - ensures colored circle markers for waypoint/point features
+                      pointToLayer={(_feature: any, latlng: any) => {
+                        return RL.circleMarker(latlng, {
+                          radius: 5,
+                          fill: true,
+                          fillOpacity: 0.9,
+                          color: d.color,
+                          weight: 1,
+                          opacity: 0.95,
+                        });
+                      }}
+                    />
+                  )
+              )}
+            </RL.MapContainer>
+          )}
+        </div>
 
         {/* extents & stats display */}
         <div style={{ marginTop: 12 }}>

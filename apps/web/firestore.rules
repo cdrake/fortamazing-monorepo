@@ -1,16 +1,15 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     // ----------------------------------------
     // POSTS
     // ----------------------------------------
     match /posts/{postId} {
       allow read: if true;
-      allow create: if request.auth != null 
+      allow create: if request.auth != null
                      && request.auth.uid == request.resource.data.userId;
-      allow update, delete: if request.auth != null 
+      allow update, delete: if request.auth != null
                             && request.auth.uid == resource.data.userId;
     }
 
@@ -19,7 +18,7 @@ service cloud.firestore {
     // ----------------------------------------
     match /users/{userId} {
       allow read: if true;
-      allow update, delete, write: if request.auth != null 
+      allow update, delete, write: if request.auth != null
                                    && request.auth.uid == userId;
     }
 
@@ -36,45 +35,46 @@ service cloud.firestore {
     }
 
     // ----------------------------------------
-    // HIKES (Stored under usersByName/{username}/hikes/{hikeId})
-    // Make ALL hikes PUBLIC READ
+    // HIKES (now stored under users/{uid}/hikes/{hikeId})
+    // - Document shape (recommended):
+    //   {
+    //     owner: { uid: "...", email: "...", displayName: "..." },
+    //     public: true|false,
+    //     title: "...",
+    //     descriptionMd: "...",
+    //     days: [ { id: "...", name: "...", stats: {...}, color: "...", geojsonUrl: "..." }, ... ],
+    //     combinedUrl: "https://...json",
+    //     images: [{ url: "...", filename: "...", contentType: "..." }],
+    //     createdAt: <timestamp>
+    //   }
     // ----------------------------------------
 
-    // Parent-level LIST rule for collectionGroup queries
-    match /usersByName/{username}/hikes {
-      allow list: if true;    // Allow public listing of hikes
+    // Allow collectionGroup queries (list) for any hikes subcollection
+    match /{anyPath=**}/hikes {
+      allow list: if true; // allows collectionGroup list queries if you want public lists
     }
 
-    // Allow listing/reading public hikes anywhere there's a "hikes" subcollection
+    // Generic access rules for any single hike doc in any subcollection named "hikes"
     match /{anyPath=**}/hikes/{hikeId} {
-      // LIST: required for collectionGroup queries — allow for anyone
+
+      // GET: public OR owner
+      allow get: if resource.data.public == true
+                 || (request.auth != null && request.auth.uid == resource.data.owner.uid);
+
+      // LIST: covered by parent /{anyPath=**}/hikes above (collectionGroup)
       allow list: if true;
 
-      // GET (single doc): allow if doc.public == true OR owner
-      allow get: if resource.data.public == true
-                || (request.auth != null && resource.data.ownerUid == request.auth.uid);
-      
-      // Do NOT allow create/update/delete here (keep writes restricted below)
-      allow create, update, delete: if false;
-    }
-    
-    // Document-level rules
-    match /usersByName/{username}/hikes/{hikeId} {
-
-      // CREATE: authenticated user + ownerUid matches
+      // CREATE: only authenticated users and the request must assert the owner.uid equals auth.uid
       allow create: if request.auth != null
-                    && request.resource.data.ownerUid == request.auth.uid;
+                    && request.resource.data.owner is map
+                    && request.resource.data.owner.uid == request.auth.uid
+                    // basic shape checks (optional but recommended)
+                    && request.resource.data.title is string
+                    && request.resource.data.createdAt != null;
 
-      // UPDATE / DELETE: owner only
+      // UPDATE / DELETE: only owner can modify/delete after creation
       allow update, delete: if request.auth != null
-                            && resource.data.ownerUid == request.auth.uid;
-
-      // GET: allow public read OR owner read
-      allow get: if resource.data.public == true
-                 || (request.auth != null 
-                     && resource.data.ownerUid == request.auth.uid);
-
-      // LIST is handled by the parent rule above
+                            && request.auth.uid == resource.data.owner.uid;
     }
   }
 }
