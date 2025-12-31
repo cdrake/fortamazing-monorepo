@@ -59,6 +59,9 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
   const [imageMarkers, setImageMarkers] = useState<ImageMarker[]>([]);
   const [selectedElevations, setSelectedElevations] = useState<number[] | null>(null);
 
+  const mapRef = useRef<any | null>(null);
+  const markersRef = useRef<any[]>([]);
+
   // expose load to parent via registerLoad
   useEffect(() => {
     if (typeof registerLoad !== "function") return;
@@ -237,6 +240,177 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
     }
   }
 
+  // Helpers: clear existing markers
+function clearImageMarkers() {
+  try {
+    const markers = markersRef.current || [];
+    markers.forEach((m: any) => {
+      try { m.remove?.(); } catch {}
+      try { (m as any).off?.(); } catch {}
+      // if we created preview el, remove it
+      try {
+        const el = (m as any)._imagePreviewEl;
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+      } catch {}
+      try {
+        if ((m as any)._mobilePreviewCleanup) (m as any)._mobilePreviewCleanup();
+      } catch {}
+    });
+  } catch (e) {
+    console.warn("clearImageMarkers error", e);
+  } finally {
+    markersRef.current = [];
+  }
+}
+
+// addMarker: create marker + preview element, return the marker
+async function addMarker(lat: number, lon: number, imageUrl: string, opts?: { title?: string; previewSize?: number; openInNewTab?: boolean }) {
+  const map = mapRef.current;
+  if (!map) {
+    console.warn("addMarker: map not ready");
+    return null;
+  }
+  try {
+    const Lmod = await import("leaflet");
+    const L: any = (Lmod as any).default ?? Lmod;
+
+    const marker = L.marker([lat, lon], { title: opts?.title ?? "Photo", keyboard: true }).addTo(map);
+
+    // create preview element
+    const createPreview = (imageUrlInner: string, titleInner?: string, size = 120) => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "map-image-hover-preview";
+      wrapper.style.position = "absolute";
+      wrapper.style.pointerEvents = "none";
+      wrapper.style.zIndex = "10000";
+      wrapper.style.display = "none";
+      wrapper.style.opacity = "0";
+      wrapper.style.transform = "translate(-50%, -105%) scale(0.98)";
+      wrapper.style.transition = "opacity 120ms ease, transform 120ms ease";
+
+      const img = document.createElement("img");
+      img.src = imageUrlInner;
+      img.alt = titleInner ?? "preview";
+      img.loading = "lazy";
+      img.style.width = `${size}px`;
+      img.style.height = "auto";
+      img.style.maxHeight = `${Math.round(size * 0.75)}px`;
+      img.style.objectFit = "cover";
+      img.style.borderRadius = "6px";
+      img.style.opacity = "0.3";
+      img.style.display = "block";
+      img.style.pointerEvents = "none";
+      img.style.userSelect = "none";
+
+      wrapper.appendChild(img);
+      return { wrapper, img };
+    };
+
+    const previewSize = opts?.previewSize ?? 120;
+    const { wrapper: previewEl, img: previewImg } = createPreview(imageUrl, opts?.title, previewSize);
+
+    const mapContainer = (map.getContainer && map.getContainer()) || document.querySelector(".leaflet-container");
+    if (mapContainer && mapContainer.appendChild) mapContainer.appendChild(previewEl);
+    else document.body.appendChild(previewEl);
+
+    const showPreviewAt = (point: { x: number; y: number }) => {
+      previewEl.style.left = `${Math.round(point.x)}px`;
+      previewEl.style.top = `${Math.round(point.y - 8)}px`;
+      previewEl.style.display = "block";
+      requestAnimationFrame(() => {
+        previewEl.style.opacity = "1";
+        previewEl.style.transform = "translate(-50%, -105%) scale(1)";
+      });
+    };
+    const hidePreview = () => {
+      previewEl.style.opacity = "0";
+      previewEl.style.transform = "translate(-50%, -105%) scale(0.98)";
+      setTimeout(() => { try { previewEl.style.display = "none"; } catch {} }, 140);
+    };
+
+    const isTouch = typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+
+    if (!isTouch) {
+      const onMouseOver = (ev: any) => {
+        try {
+          const rect = mapContainer.getBoundingClientRect();
+          const origEvt = ev?.originalEvent;
+          let point;
+          if (origEvt && typeof origEvt.clientX === "number") {
+            point = { x: origEvt.clientX - rect.left, y: origEvt.clientY - rect.top };
+          } else {
+            const latlng = ev?.latlng ?? marker.getLatLng();
+            const p = map.latLngToContainerPoint(latlng);
+            point = { x: p.x, y: p.y };
+          }
+          previewEl.style.pointerEvents = "none";
+          previewImg.style.pointerEvents = "none";
+          showPreviewAt(point);
+        } catch (e) { try { const c = map.latLngToContainerPoint(map.getCenter()); showPreviewAt({ x: c.x, y: c.y }); } catch {} }
+      };
+      const onMouseOut = () => hidePreview();
+
+      marker.on("mouseover", onMouseOver);
+      marker.on("mouseout", onMouseOut);
+
+      const openFull = () => {
+        if (opts?.openInNewTab === false) window.location.href = imageUrl;
+        else window.open(imageUrl, "_blank", "noopener,noreferrer");
+      };
+      marker.on("click", openFull);
+      marker.on("keypress", (e: any) => { if (e.originalEvent?.key === "Enter") openFull(); });
+    } else {
+      // touch: tap toggles preview, tap preview opens full
+      previewEl.style.pointerEvents = "auto";
+      previewImg.style.pointerEvents = "auto";
+      previewImg.style.cursor = "pointer";
+
+      const openFull = () => {
+        if (opts?.openInNewTab === false) window.location.href = imageUrl;
+        else window.open(imageUrl, "_blank", "noopener,noreferrer");
+      };
+
+      const onMarkerClickTouch = (ev: any) => {
+        try {
+          const rect = mapContainer.getBoundingClientRect();
+          const origEvt = ev?.originalEvent;
+          let point;
+          if (origEvt && typeof origEvt.clientX === "number") {
+            point = { x: origEvt.clientX - rect.left, y: origEvt.clientY - rect.top };
+          } else {
+            const latlng = ev?.latlng ?? marker.getLatLng();
+            const p = map.latLngToContainerPoint(latlng);
+            point = { x: p.x, y: p.y };
+          }
+          const visible = previewEl.style.display !== "none" && previewEl.style.opacity !== "0";
+          if (visible) openFull();
+          else showPreviewAt(point);
+        } catch (e) { try { const c = map.latLngToContainerPoint(map.getCenter()); showPreviewAt({ x: c.x, y: c.y }); } catch {} }
+      };
+
+      const onPreviewClick = (ev: MouseEvent) => { ev.stopPropagation(); openFull(); };
+
+      marker.on("click", onMarkerClickTouch);
+      previewEl.addEventListener("click", onPreviewClick, { passive: true });
+
+      const onMapClickHide = () => hidePreview();
+      map.on("click", onMapClickHide);
+
+      (marker as any)._mobilePreviewCleanup = () => {
+        try { previewEl.removeEventListener("click", onPreviewClick); } catch {}
+        try { map.off("click", onMapClickHide); } catch {}
+      };
+    }
+
+    (marker as any)._imagePreviewEl = previewEl;
+    return marker;
+  } catch (e) {
+    console.warn("addMarker failed", e);
+    return null;
+  }
+}
+
+
   // --------------------
   // Stats / elevation profile helpers
   // --------------------
@@ -339,76 +513,99 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
   if (!e.target.files) return;
   const arr = Array.from(e.target.files);
 
-  // We'll produce finalFiles (File[]) and previews (string[])
+  // clear markers for a fresh start
+  clearImageMarkers();
+
+  // arrays we'll set into state
   const finalFiles: File[] = [];
   const previews: string[] = [];
 
+  // extent for containment checks
+  const extent = getCombinedExtentFromDayTracks(dayTracks); // may be null
+
   for (let i = 0; i < arr.length; i++) {
     const f = arr[i];
+    let gps: LatLon = null;
+
+    // 1) try extracting gps from the original file before any conversion
     try {
-      // 1) Try to read GPS EXIF from the original file (best-effort)
-      let gps: LatLon = null;
-      try {
+      if (typeof extractExifFromFile === "function") {
         gps = await extractExifFromFile(f);
         console.debug("[onImageFilesChange] extracted gps from original", { name: f.name, gps });
-      } catch (exifErr) {
-        console.warn("[onImageFilesChange] extractExifFromFile failed for", f.name, exifErr);
-        gps = null;
+        if (gps && extent && extent.bbox) {
+          const [minLon, minLat, maxLon, maxLat] = extent.bbox as [number, number, number, number];
+          if (gps.lon >= minLon && gps.lon <= maxLon && gps.lat >= minLat && gps.lat <= maxLat) {
+            // create quick preview url from original file and add marker
+            try {
+              const markerPreviewUrl = URL.createObjectURL(f);
+              const m = await addMarker(gps.lat, gps.lon, markerPreviewUrl, { title: f.name, previewSize: 140 });
+              if (m) markersRef.current.push(m);
+              // don't revoke markerPreviewUrl yet, used by marker preview
+              previews.push(markerPreviewUrl); // visible immediate preview
+            } catch (e) {
+              console.warn("[onImageFilesChange] failed to add marker from extracted EXIF:", e);
+            }
+          }
+        }
       }
+    } catch (exifErr) {
+      console.warn("[onImageFilesChange] extractExifFromFile failed", exifErr);
+      gps = null;
+    }
 
+    // 2) convert HEIC -> JPEG and insert gps EXIF if present
+    try {
       const ext = (f.name.split(".").pop() || "").toLowerCase();
       if ((ext === "heic" || ext === "heif") && typeof convertHeicFile === "function") {
-        // 2) HEIC -> JPEG conversion + inject GPS EXIF (if available)
         try {
-          const conv: any = await convertHeicFile(f, { type: "image/jpeg", quality: 0.92 });
-          const out = conv?.file ?? conv;
-          // normalize to Blob
-          let outBlob: Blob | null = null;
-          if (out instanceof Blob) outBlob = out;
-          else if (isBlobLike(out)) outBlob = out as unknown as Blob;
-          else if (out && typeof out.arrayBuffer === "function") outBlob = out as Blob;
-          else throw new Error("HEIC converter returned unsupported value");
+          // convert to jpeg (shared converter)
+          const convRes: any = await convertHeicFile(f, { type: "image/jpeg", quality: 0.92 });
+          const out = convRes?.file ?? convRes;
+          let convertedBlob: Blob;
+          if (out instanceof File || out instanceof Blob) convertedBlob = out as Blob;
+          else throw new Error("conversion returned unexpected type");
 
-          // insert GPS EXIF into the converted JPEG (best-effort)
-          let patchedBlob: Blob = outBlob;
-          try {
-            patchedBlob = await insertGpsExifIntoJpeg(outBlob, gps && typeof gps.lat === "number" && typeof gps.lon === "number" ? gps : null);
-          } catch (insertErr) {
-            console.warn("[onImageFilesChange] insertGpsExifIntoJpeg failed, using converted blob", insertErr);
-            patchedBlob = outBlob;
+          // if we have gps, try to insert GPS EXIF into converted JPEG
+          let patchedBlob = convertedBlob;
+          if (gps && typeof gps.lat === "number" && typeof gps.lon === "number" && typeof insertGpsExifIntoJpeg === "function") {
+            try {
+              patchedBlob = await insertGpsExifIntoJpeg(convertedBlob, gps);
+            } catch (e) {
+              console.warn("insertGpsExifIntoJpeg failed", e);
+            }
           }
 
-          // normalize to File
           const filenameBase = (f.name || "image").replace(/\.[^.]+$/, "");
           const finalFile = patchedBlob instanceof File ? patchedBlob : new File([patchedBlob], `${filenameBase}.jpg`, { type: "image/jpeg" });
-
           finalFiles.push(finalFile);
           try { previews.push(URL.createObjectURL(finalFile)); } catch { previews.push(""); }
+          continue; // next input file
         } catch (convErr) {
           console.warn("[onImageFilesChange] HEIC conversion or EXIF insert failed, falling back to original", convErr);
-          finalFiles.push(f);
-          try { previews.push(URL.createObjectURL(f)); } catch { previews.push(""); }
+          // fall through to push original file below
         }
-      } else {
-        // not HEIC — keep original file (may already contain EXIF)
-        finalFiles.push(f);
-        try { previews.push(URL.createObjectURL(f)); } catch { previews.push(""); }
       }
+
+      // non-HEIC or conversion fallback: keep original file
+      finalFiles.push(f);
+      try { previews.push(URL.createObjectURL(f)); } catch { previews.push(""); }
     } catch (err) {
       console.warn("[onImageFilesChange] per-file error", err);
-      // fallback: include original file but still continue processing others
+      // ensure previews/final still have a placeholder
       finalFiles.push(f);
       try { previews.push(URL.createObjectURL(f)); } catch { previews.push(""); }
     }
   }
 
-  // append previews and new files to state
-  setImagePreviews(prev => prev.concat(previews));
-  setNewImageFiles(prev => prev.concat(finalFiles));
+  // revoke old previews (if you stored them earlier)
+  imagePreviews.forEach(u => { try { URL.revokeObjectURL(u); } catch {} });
 
-  // clear native input to allow re-selecting the same files
+  // set state
+  setNewImageFiles(prev => prev.concat(finalFiles));
+  setImagePreviews(prev => prev.concat(previews));
   e.target.value = "";
-}, [setImagePreviews, setNewImageFiles]);
+}, [dayTracks, imagePreviews]);
+
 
 
   const saveEdits = useCallback(async () => {
@@ -551,7 +748,7 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
               combinedGeojson={combinedGeojson ?? undefined}
               imageMarkers={imageMarkers}
               activeTileId="osm"
-              onMapApiReady={() => {}}
+              onMapApiReady={(m) => { mapRef.current = m; }}
               tileLayers={[{ id: "osm", name: "OSM", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" }]}
               onFeatureClick={({ elevations }) => {
                 if (elevations && elevations.length > 0) {
