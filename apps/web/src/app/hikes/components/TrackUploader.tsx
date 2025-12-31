@@ -475,7 +475,7 @@ async function addMarker(
       try {
         const iconEl = marker.getElement?.();
         if (iconEl) {
-          iconEl.addEventListener("mouseenter", (ev) => {
+          iconEl.addEventListener("mouseenter", (ev: MouseEvent) => {
             const rect = mapContainer.getBoundingClientRect();
             showPreviewAt({ x: (ev as MouseEvent).clientX - rect.left, y: (ev as MouseEvent).clientY - rect.top });
           });
