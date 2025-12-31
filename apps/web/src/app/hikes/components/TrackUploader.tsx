@@ -368,95 +368,190 @@ async function addMarker(
       keyboard: true,
     }).addTo(map);
 
-    // create hover preview DOM and append to map container
+    // create preview DOM (same helper inline here)
+    const createPreview = (imageUrlInner: string, titleInner?: string, size = 120) => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "map-image-hover-preview";
+      wrapper.style.position = "absolute";
+      wrapper.style.pointerEvents = "none"; // by default non-interactive for desktop hover
+      wrapper.style.zIndex = "10000";
+      wrapper.style.display = "none";
+      wrapper.style.opacity = "0";
+      wrapper.style.transform = "translate(-50%, -105%) scale(0.98)";
+      wrapper.style.transition = "opacity 120ms ease, transform 120ms ease";
+
+      const img = document.createElement("img");
+      img.src = imageUrlInner;
+      img.alt = titleInner ?? "preview";
+      img.loading = "lazy";
+      img.style.width = `${size}px`;
+      img.style.height = "auto";
+      img.style.maxHeight = `${Math.round(size * 0.75)}px`;
+      img.style.objectFit = "cover";
+      img.style.borderRadius = "6px";
+      img.style.opacity = "0.3"; // you said you'll raise opacity
+      img.style.display = "block";
+      img.style.pointerEvents = "none"; // desktop: don't capture pointer
+      img.style.userSelect = "none";
+
+      // debug handlers (optional)
+      img.onload = () => {
+        // eslint-disable-next-line no-console
+        console.debug("[addMarker] preview image loaded", { name: titleInner, url: imageUrlInner });
+      };
+      img.onerror = (ev) => {
+        // eslint-disable-next-line no-console
+        console.warn("[addMarker] preview image failed to load", { name: titleInner, url: imageUrlInner, ev });
+        img.style.opacity = "0.06";
+        img.style.filter = "grayscale(1)";
+      };
+
+      wrapper.appendChild(img);
+      return { wrapper, img };
+    };
+
     const previewSize = opts?.previewSize ?? 120;
-    const previewEl = createHoverPreviewElement(imageUrl, opts?.title, previewSize);
+    const { wrapper: previewEl, img: previewImg } = createPreview(imageUrl, opts?.title, previewSize);
+
+    // append to map container
     const mapContainer = (map.getContainer && map.getContainer()) || document.querySelector(".leaflet-container");
     if (mapContainer && mapContainer.appendChild) {
       mapContainer.appendChild(previewEl);
     } else {
-      // fallback: append to body (shouldn't happen for leaflet)
       document.body.appendChild(previewEl);
     }
 
-    // helper to position preview over the marker (or pointer)
+    // helpers to show/hide/position preview
     const showPreviewAt = (point: { x: number; y: number }) => {
       previewEl.style.left = `${Math.round(point.x)}px`;
-      previewEl.style.top = `${Math.round(point.y - 8)}px`; // lift slightly above pointer
+      previewEl.style.top = `${Math.round(point.y - 8)}px`;
       previewEl.style.display = "block";
-      // slight entrance animation
-      previewEl.style.opacity = "1";
-      previewEl.style.transform = "translate(-50%, -105%) scale(1)";
+      // animate in
+      requestAnimationFrame(() => {
+        previewEl.style.opacity = "1";
+        previewEl.style.transform = "translate(-50%, -105%) scale(1)";
+      });
     };
     const hidePreview = () => {
       previewEl.style.opacity = "0";
       previewEl.style.transform = "translate(-50%, -105%) scale(0.98)";
-      // keep in DOM but hide after transition
       setTimeout(() => {
         try { previewEl.style.display = "none"; } catch {}
       }, 140);
     };
 
-    // On marker hover: compute container point and show preview
-    const onMouseOver = (ev: any) => {
-      try {
-        // prefer cursor position if available (ev.originalEvent), else marker center
-        const origEvt = ev?.originalEvent;
-        let point;
-        if (origEvt && typeof origEvt.clientX === "number") {
-          // convert client coords to container point
-          const rect = mapContainer.getBoundingClientRect();
-          point = { x: origEvt.clientX - rect.left, y: origEvt.clientY - rect.top };
-        } else {
-          // compute marker center pixel
-          const latlng = (ev?.latlng) ?? marker.getLatLng();
-          const p = map.latLngToContainerPoint(latlng);
-          point = { x: p.x, y: p.y };
+    // detect touch devices
+    const isTouch = typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+
+    // Desktop: show preview on marker mouseover, hide on mouseout
+    if (!isTouch) {
+      const onMouseOver = (ev: any) => {
+        try {
+          const origEvt = ev?.originalEvent;
+          let point;
+          if (origEvt && typeof origEvt.clientX === "number") {
+            const rect = mapContainer.getBoundingClientRect();
+            point = { x: origEvt.clientX - rect.left, y: origEvt.clientY - rect.top };
+          } else {
+            const latlng = (ev?.latlng) ?? marker.getLatLng();
+            const p = map.latLngToContainerPoint(latlng);
+            point = { x: p.x, y: p.y };
+          }
+          // ensure preview remains non-interactive on desktop
+          previewEl.style.pointerEvents = "none";
+          previewImg.style.pointerEvents = "none";
+          showPreviewAt(point);
+        } catch (e) {
+          const center = map.latLngToContainerPoint(map.getCenter());
+          showPreviewAt({ x: center.x, y: center.y });
         }
-        showPreviewAt(point);
-      } catch (e) {
-        // fallback: position at map center
-        const center = map.latLngToContainerPoint(map.getCenter());
-        showPreviewAt({ x: center.x, y: center.y });
-      }
-    };
+      };
+      const onMouseOut = () => hidePreview();
 
-    const onMouseOut = () => hidePreview();
+      marker.on("mouseover", onMouseOver);
+      marker.on("mouseout", onMouseOut);
 
-    // Attach events: mouseover/mouseout for desktop; for touch, we won't show hover preview
-    marker.on("mouseover", onMouseOver);
-    marker.on("mouseout", onMouseOut);
+      // also show when mouse enters actual icon element (robustness)
+      try {
+        const iconEl = marker.getElement?.();
+        if (iconEl) {
+          iconEl.addEventListener("mouseenter", (ev) => {
+            const rect = mapContainer.getBoundingClientRect();
+            showPreviewAt({ x: (ev as MouseEvent).clientX - rect.left, y: (ev as MouseEvent).clientY - rect.top });
+          });
+          iconEl.addEventListener("mouseleave", hidePreview);
+        }
+      } catch (e) { /* ignore */ }
 
-    // Also show preview when hovering marker's icon element (safer)
-    try {
-      const iconEl = marker.getElement?.();
-      if (iconEl) {
-        iconEl.addEventListener("mouseenter", (ev: MouseEvent) => {
-          // translate global client coords to container coords
+      // click on desktop -> open full image (keeps previous behavior)
+      const openFull = () => {
+        if (opts?.openInNewTab === false) window.location.href = imageUrl;
+        else window.open(imageUrl, "_blank", "noopener,noreferrer");
+      };
+      marker.on("click", openFull);
+      marker.on("keypress", (e: any) => {
+        if (e.originalEvent?.key === "Enter") openFull();
+      });
+    } else {
+      // Touch device: marker tap toggles preview visibility; tapping preview opens full image.
+      // Make preview interactive so it can receive taps
+      previewEl.style.pointerEvents = "auto";
+      previewImg.style.pointerEvents = "auto";
+      previewImg.style.cursor = "pointer";
+
+      const openFull = () => {
+        if (opts?.openInNewTab === false) window.location.href = imageUrl;
+        else window.open(imageUrl, "_blank", "noopener,noreferrer");
+      };
+
+      // marker click shows preview (and positions it)
+      const onMarkerClickTouch = (ev: any) => {
+        try {
           const rect = mapContainer.getBoundingClientRect();
-          const ce = (ev as MouseEvent);
-          showPreviewAt({ x: ce.clientX - rect.left, y: ce.clientY - rect.top });
-        });
-        iconEl.addEventListener("mouseleave", () => hidePreview());
-      }
-    } catch (e) {
-      // ignore
+          const origEvt = ev?.originalEvent;
+          let point;
+          if (origEvt && typeof origEvt.clientX === "number") {
+            point = { x: origEvt.clientX - rect.left, y: origEvt.clientY - rect.top };
+          } else {
+            const latlng = (ev?.latlng) ?? marker.getLatLng();
+            const p = map.latLngToContainerPoint(latlng);
+            point = { x: p.x, y: p.y };
+          }
+          // If preview is already visible at same spot, open full image instead of toggling
+          const visible = previewEl.style.display !== "none" && previewEl.style.opacity !== "0";
+          if (visible) {
+            openFull();
+          } else {
+            showPreviewAt(point);
+          }
+        } catch (e) {
+          // fallback: open preview at center
+          const center = map.latLngToContainerPoint(map.getCenter());
+          showPreviewAt({ x: center.x, y: center.y });
+        }
+      };
+
+      // preview click opens full image
+      const onPreviewClick = (ev: MouseEvent) => {
+        ev.stopPropagation();
+        openFull();
+      };
+
+      marker.on("click", onMarkerClickTouch);
+      previewEl.addEventListener("click", onPreviewClick, { passive: true });
+
+      // Hide preview when tapping anywhere else on the map
+      const onMapClickHide = () => hidePreview();
+      map.on("click", onMapClickHide);
+
+      // store cleanup references on marker for later removal
+      (marker as any)._mobilePreviewCleanup = () => {
+        try { previewEl.removeEventListener("click", onPreviewClick); } catch {}
+        try { map.off("click", onMapClickHide); } catch {}
+      };
     }
 
-    // click: open the full image (no popup)
-    const open = () => {
-      if (opts?.openInNewTab === false) {
-        window.location.href = imageUrl;
-      } else {
-        window.open(imageUrl, "_blank", "noopener,noreferrer");
-      }
-    };
-    marker.on("click", open);
-    marker.on("keypress", (e: any) => {
-      if (e.originalEvent?.key === "Enter") open();
-    });
-
-    // keep a reference to preview element on the marker so it can be cleaned up later
+    // store preview element for later cleanup when removing marker
     (marker as any)._imagePreviewEl = previewEl;
 
     return marker;
@@ -465,6 +560,7 @@ async function addMarker(
     return null;
   }
 }
+
 
 
   // ---- demo helper used previously (kept small) ----
