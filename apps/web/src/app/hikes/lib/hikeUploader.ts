@@ -17,11 +17,12 @@ import {
 
 import type { FeatureCollection, Geometry } from "geojson";
 import type { DayTrack } from "./geo";
+import { extractExifFromFile, insertGpsExifIntoJpeg } from "./imageHelpers";
 
 /**
  * saveAllWithStorage
  * - Uploads combined + per-day GeoJSON files to Storage
- * - Uploads images to Storage
+ * - Uploads images to Storage (inserting GPS EXIF into JPEGs when available)
  * - Creates a Firestore doc at users/{uid}/hikes/{hikeId} without storing raw geojson (no nested arrays)
  *
  * Returns { hikeId, combinedUrl, dayUrls, images }
@@ -83,7 +84,14 @@ export async function saveAllWithStorage(opts: {
   const hikeId = docRef.id;
 
   // Collect uploaded items to return
-  const uploadedImages: Array<{ filename: string; path: string; url: string; contentType?: string }> = [];
+  const uploadedImages: Array<{
+    filename: string;
+    path: string;
+    url: string;
+    contentType?: string | null;
+    lat?: number | null;
+    lon?: number | null;
+  }> = [];
   const dayUrls: Record<string, string> = {};
   let combinedUrl: string | null = null;
 
@@ -95,7 +103,6 @@ export async function saveAllWithStorage(opts: {
       const combinedRef = storageRef(storage, combinedPath);
       await uploadBytes(combinedRef, combinedBlob, {
         contentType: "application/json",
-        // optional: metadata: { public: "false", ownerUid: user.uid }
       });
       combinedUrl = await getDownloadURL(combinedRef);
     } catch (e) {
@@ -124,16 +131,57 @@ export async function saveAllWithStorage(opts: {
     }
   }
 
-  // 3) Upload images (if any)
+  // 3) Upload images (if any) — attempt to extract lat/lon and insert GPS EXIF before upload
   if (imageFiles && imageFiles.length > 0) {
     for (const f of imageFiles) {
       try {
+        // Attempt to extract GPS from the provided File (best-effort, before conversion/patch)
+        let extractedGps: { lat: number; lon: number } | null = null;
+        try {
+          const ex = await extractExifFromFile(f);
+          if (ex && typeof ex.lat === "number" && typeof ex.lon === "number") {
+            extractedGps = { lat: Number(ex.lat), lon: Number(ex.lon) };
+            console.debug("[saveAllWithStorage] extracted GPS from image", { name: f.name, extractedGps });
+          } else {
+            console.debug("[saveAllWithStorage] no GPS found in image", { name: f.name });
+          }
+        } catch (e) {
+          console.warn("[saveAllWithStorage] extractExifFromFile failed for", f.name, e);
+          extractedGps = null;
+        }
+
+        // Attempt to insert GPS EXIF into the JPEG before uploading (works if blob is JPEG)
+        let blobToUpload: Blob = f;
+        try {
+          // Only attempt insertion if we have coordinates
+          if (extractedGps) {
+            const patched = await insertGpsExifIntoJpeg(f, extractedGps);
+            if (patched) blobToUpload = patched;
+          }
+        } catch (e) {
+          console.warn("[saveAllWithStorage] insertGpsExifIntoJpeg failed (continuing with original blob):", e);
+          blobToUpload = f;
+        }
+
+        // Upload
         const safeName = encodeURIComponent(f.name);
         const path = `hikes/${user.uid}/${hikeId}/images/${Date.now()}-${safeName}`;
         const ref = storageRef(storage, path);
-        await uploadBytes(ref, f, { contentType: f.type });
-        const url = await getDownloadURL(ref);
-        uploadedImages.push({ filename: f.name, path, url, contentType: f.type });
+        try {
+          await uploadBytes(ref, blobToUpload, { contentType: blobToUpload.type || f.type || "image/jpeg" });
+          const url = await getDownloadURL(ref);
+
+          uploadedImages.push({
+            filename: f.name,
+            path,
+            url,
+            contentType: blobToUpload.type || f.type || null,
+            lat: extractedGps?.lat ?? null,
+            lon: extractedGps?.lon ?? null,
+          });
+        } catch (e) {
+          console.warn("[saveAllWithStorage] uploadBytes failed for", f.name, e);
+        }
       } catch (e) {
         console.warn("Image upload failed for", f.name, e);
       }
@@ -155,7 +203,17 @@ export async function saveAllWithStorage(opts: {
     const updateData: Record<string, any> = {};
     if (combinedUrl) updateData.combinedUrl = combinedUrl;
     updateData.days = updatedDays;
-    if (uploadedImages.length) updateData.images = uploadedImages;
+    if (uploadedImages.length) {
+      // store images as array of objects including lat/lon
+      updateData.images = uploadedImages.map((im) => ({
+        filename: im.filename,
+        path: im.path,
+        url: im.url,
+        contentType: im.contentType ?? null,
+        lat: typeof im.lat === "number" ? im.lat : null,
+        lon: typeof im.lon === "number" ? im.lon : null,
+      }));
+    }
 
     await updateDoc(firestoreDoc(db, "users", user.uid, "hikes", hikeId), updateData);
   } catch (e) {
