@@ -230,18 +230,27 @@ export async function appendToHikeWithStorage(options: {
     }
   }
 
+  const user = getAuth().currentUser;
+  console.log("upload uid:", user?.uid);
+  console.log("storage bucket:", getStorage().app.options?.storageBucket ?? "(none)");
+  
+
   // upload images
   for (let i = 0; i < imageFiles.length; i++) {
     const f = imageFiles[i];
     const dest = `users/${uid}/hikes/${hikeId}/images/${Date.now()}-${i}-${f.name}`;
+    console.log("attempted path:", dest);
     const uploaded = await _uploadToStorage(f, dest, storeDownloadUrls);
     uploadedImages.push({ path: uploaded.gsPath, url: uploaded.downloadUrl });
+    
   }
 
   // update doc using arrayUnion
   const updates: any = {};
   if (uploadedDays.length) updates.days = arrayUnion(...uploadedDays);
   if (uploadedImages.length) updates.images = arrayUnion(...uploadedImages);
+
+  
 
   if (Object.keys(updates).length) {
     await updateDoc(hikeDocRef, updates);

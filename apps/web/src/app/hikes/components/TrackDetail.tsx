@@ -10,7 +10,7 @@ import { db } from "@/lib/firebase";
 import MapView, { ImageMarker } from "./MapView";
 import { appendToHikeWithStorage } from "../lib/hikeEditor";
 import { gpx as parseGpx, kml as parseKml } from "togeojson";
-import { convertHeicFile, extractExifFromUrl } from "../lib/imageHelpers"; // optional helper
+import { convertHeicFile, extractExifFromFile, extractExifFromUrl, insertGpsExifIntoJpeg, isBlobLike, LatLon } from "../lib/imageHelpers"; // optional helper
 import LightboxGallery from "./LightboxGallery";
 import { getCombinedExtentFromDayTracks } from "../lib/trackUtils";
 import ElevationHistogram from "./ElevationHistogram";
@@ -336,28 +336,80 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
   }, []);
 
   const onImageFilesChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
-    const arr = Array.from(e.target.files);
+  if (!e.target.files) return;
+  const arr = Array.from(e.target.files);
 
-    // generate previews (attempt HEIC->jpeg conversion if helper exists)
-    const previews = await Promise.all(arr.map(async (f) => {
+  // We'll produce finalFiles (File[]) and previews (string[])
+  const finalFiles: File[] = [];
+  const previews: string[] = [];
+
+  for (let i = 0; i < arr.length; i++) {
+    const f = arr[i];
+    try {
+      // 1) Try to read GPS EXIF from the original file (best-effort)
+      let gps: LatLon = null;
+      try {
+        gps = await extractExifFromFile(f);
+        console.debug("[onImageFilesChange] extracted gps from original", { name: f.name, gps });
+      } catch (exifErr) {
+        console.warn("[onImageFilesChange] extractExifFromFile failed for", f.name, exifErr);
+        gps = null;
+      }
+
       const ext = (f.name.split(".").pop() || "").toLowerCase();
       if ((ext === "heic" || ext === "heif") && typeof convertHeicFile === "function") {
+        // 2) HEIC -> JPEG conversion + inject GPS EXIF (if available)
         try {
-          const conv: any = await convertHeicFile(f, { type: "image/jpeg", quality: 0.9 });
+          const conv: any = await convertHeicFile(f, { type: "image/jpeg", quality: 0.92 });
           const out = conv?.file ?? conv;
-          if (out instanceof Blob) return URL.createObjectURL(out);
-        } catch (e) {
-          // fall back
-        }
-      }
-      try { return URL.createObjectURL(f); } catch { return ""; }
-    }));
+          // normalize to Blob
+          let outBlob: Blob | null = null;
+          if (out instanceof Blob) outBlob = out;
+          else if (isBlobLike(out)) outBlob = out as unknown as Blob;
+          else if (out && typeof out.arrayBuffer === "function") outBlob = out as Blob;
+          else throw new Error("HEIC converter returned unsupported value");
 
-    setImagePreviews(prev => prev.concat(previews));
-    setNewImageFiles(prev => prev.concat(arr));
-    e.target.value = "";
-  }, []);
+          // insert GPS EXIF into the converted JPEG (best-effort)
+          let patchedBlob: Blob = outBlob;
+          try {
+            patchedBlob = await insertGpsExifIntoJpeg(outBlob, gps && typeof gps.lat === "number" && typeof gps.lon === "number" ? gps : null);
+          } catch (insertErr) {
+            console.warn("[onImageFilesChange] insertGpsExifIntoJpeg failed, using converted blob", insertErr);
+            patchedBlob = outBlob;
+          }
+
+          // normalize to File
+          const filenameBase = (f.name || "image").replace(/\.[^.]+$/, "");
+          const finalFile = patchedBlob instanceof File ? patchedBlob : new File([patchedBlob], `${filenameBase}.jpg`, { type: "image/jpeg" });
+
+          finalFiles.push(finalFile);
+          try { previews.push(URL.createObjectURL(finalFile)); } catch { previews.push(""); }
+        } catch (convErr) {
+          console.warn("[onImageFilesChange] HEIC conversion or EXIF insert failed, falling back to original", convErr);
+          finalFiles.push(f);
+          try { previews.push(URL.createObjectURL(f)); } catch { previews.push(""); }
+        }
+      } else {
+        // not HEIC — keep original file (may already contain EXIF)
+        finalFiles.push(f);
+        try { previews.push(URL.createObjectURL(f)); } catch { previews.push(""); }
+      }
+    } catch (err) {
+      console.warn("[onImageFilesChange] per-file error", err);
+      // fallback: include original file but still continue processing others
+      finalFiles.push(f);
+      try { previews.push(URL.createObjectURL(f)); } catch { previews.push(""); }
+    }
+  }
+
+  // append previews and new files to state
+  setImagePreviews(prev => prev.concat(previews));
+  setNewImageFiles(prev => prev.concat(finalFiles));
+
+  // clear native input to allow re-selecting the same files
+  e.target.value = "";
+}, [setImagePreviews, setNewImageFiles]);
+
 
   const saveEdits = useCallback(async () => {
     if (!hikeId) return alert("No hike loaded");

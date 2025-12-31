@@ -31,6 +31,13 @@ export type ConvertResult = {
   reason?: string | null;   // if not converted, why
 };
 
+export const isBlobLike = (v: any): v is Blob =>
+  typeof v === "object" &&
+  v !== null &&
+  typeof (v as any).arrayBuffer === "function" &&
+  typeof (v as any).size === "number" &&
+  typeof (v as any).type === "string";
+
 /* --------------------------- Basic readers --------------------------- */
 
 /** Read as Data URL (useful for <img src="data:...">) */
