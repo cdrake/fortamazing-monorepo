@@ -2,6 +2,15 @@
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import type { FeatureCollection, Geometry } from "geojson";
+import { extractElevationsFromFeature } from "../lib/trackUtils";
+
+export type ImageMarker = {
+  lat: number;
+  lon: number;
+  url: string;
+  title?: string;
+  previewSize?: number;
+};
 
 type DayTrack = {
   id: string;
@@ -30,6 +39,8 @@ type MapViewProps = {
   /** optional center + zoom fallback when no geometry present */
   center?: [number, number];
   zoom?: number;
+  imageMarkers?: ImageMarker[];
+  onFeatureClick?: (payload: { elevations: number[]; feature: any; dayTrackId?: string }) => void;
 };
 
 export default function MapView({
@@ -42,6 +53,8 @@ export default function MapView({
   className,
   center = [37.773972, -122.431297],
   zoom = 10,
+  imageMarkers = [],
+  onFeatureClick,
 }: MapViewProps) {
   // react-leaflet module (dynamically imported)
   const [RL, setRL] = useState<any | null>(null);
@@ -68,8 +81,6 @@ export default function MapView({
           let shadowUrl: string | undefined;
 
           try {
-            // bundlers sometimes expose as default export string
-            // eslint-disable-next-line @typescript-eslint/no-var-requires
             const m1 = await import("leaflet/dist/images/marker-icon.png");
             const m2 = await import("leaflet/dist/images/marker-icon-2x.png");
             const sh = await import("leaflet/dist/images/marker-shadow.png");
@@ -77,7 +88,6 @@ export default function MapView({
             marker2x = (m2 && (m2 as any).default) || (m2 as any).src || undefined;
             shadowUrl = (sh && (sh as any).default) || (sh as any).src || undefined;
           } catch (e) {
-            // fallback to common paths (your app should serve these)
             markerUrl = markerUrl ?? "/leaflet/marker-icon.png";
             marker2x = marker2x ?? "/leaflet/marker-icon-2x.png";
             shadowUrl = shadowUrl ?? "/leaflet/marker-shadow.png";
@@ -96,10 +106,8 @@ export default function MapView({
           }
         } catch (e) {
           // ignore leaflet icon fix errors
-          // console.warn("leaflet icon fix failed", e);
         }
       } catch (e) {
-        // module load failed; RL stays null and we show placeholder
         console.warn("react-leaflet failed to load dynamically:", e);
       }
     })();
@@ -110,25 +118,21 @@ export default function MapView({
   // callback when map is created
   const handleWhenCreated = useCallback((mapInstance: any) => {
     mapRef.current = mapInstance;
-    // expose to parent
     try { if (typeof onMapApiReady === "function") onMapApiReady(mapInstance); } catch {}
     // fit to geometry if present
     try {
       if (combinedGeojson && combinedGeojson.features && combinedGeojson.features.length && mapInstance) {
-        // compute bounds using Leaflet if available
         try {
           const L = (window as any).L;
           if (L && typeof L.geoJSON === "function") {
             const g = L.geoJSON(combinedGeojson);
             mapInstance.fitBounds(g.getBounds(), { padding: [20, 20], maxZoom: 15 });
-            // invalidate size after short delay to handle hidden containers
             setTimeout(() => { try { mapInstance.invalidateSize(); } catch {} }, 120);
           }
         } catch (e) {
           // ignore
         }
       } else {
-        // if no geometry, ensure size is correct
         setTimeout(() => { try { mapInstance.invalidateSize(); } catch {} }, 120);
       }
     } catch (e) {}
@@ -138,7 +142,7 @@ export default function MapView({
   const renderMap = () => {
     if (!RL) return null;
 
-    const { MapContainer, TileLayer, GeoJSON, CircleMarker, useMap } = RL as any;
+    const { MapContainer, TileLayer, GeoJSON, CircleMarker, Marker, Popup, useMap } = RL as any;
 
     // MapSetter: calls onReady with the map instance when available (uses useMap hook)
     const MapSetter = () => {
@@ -152,18 +156,43 @@ export default function MapView({
       return null;
     };
 
-    // pointToLayer wrapper for markers (use circle markers for points)
-    const pointToLayer = (feature: any, latlng: any) => {
-      const props: any = feature?.properties ?? {};
-      const radius = props && typeof props.radius === "number" ? props.radius : 5;
-      return CircleMarker(latlng, { radius, fill: true, fillOpacity: 0.9, weight: 1, opacity: 0.95, color: props.color || "#3388ff" });
-    };
-
-    // style functions
+    // style helpers
     const combinedStyle = (feat: any) => ({ color: "#ff5722", weight: 4, opacity: 0.25 });
     const dayStyle = (d: DayTrack) => () => ({ color: d.color ?? "#3388ff", weight: 4, opacity: 1.0 });
 
     const chosenTile = tileLayers.find(t => t.id === activeTileId) ?? tileLayers[0];
+    const makeOnEachFeature =
+    (dayTrackId?: string) =>
+    (feature: any, layer: any) => {
+        if (!feature || !layer) return;
+
+        // debug id for feature (if available)
+        const featId = feature?.id ?? feature?.properties?.id ?? `${dayTrackId ?? "combined"}-${Math.random().toString(36).slice(2,8)}`;
+
+        // attach click handler
+        layer.on("click", (ev: any) => {
+        try {
+            const elevations = extractElevationsFromFeature(feature) || [];
+            // debug - log so you can see calls
+            // eslint-disable-next-line no-console
+            console.debug("[MapView] feature clicked", { featId, dayTrackId, elevationsLength: elevations.length });
+
+            if (typeof onFeatureClick === "function") {
+            onFeatureClick({ elevations, feature, dayTrackId });
+            }
+        } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn("[MapView] onEachFeature click handler error", e);
+        }
+        });
+
+        // accessibility and UX
+        try {
+        const el = layer.getElement?.();
+        if (el) el.style.cursor = "pointer";
+        } catch {}
+    };
+
 
     return (
       // @ts-ignore - MapContainer props typed in react-leaflet; we intentionally keep any here
@@ -178,7 +207,7 @@ export default function MapView({
         <TileLayer url={chosenTile.url} {...(chosenTile.options || {})} />
         {combinedGeojson && (
           // @ts-ignore
-          <GeoJSON data={combinedGeojson} style={combinedStyle} />
+          <GeoJSON data={combinedGeojson} style={combinedStyle} onEachFeature={makeOnEachFeature()}/>
         )}
 
         {dayTracks.map((d) => d.visible !== false && d.geojson && (
@@ -187,10 +216,38 @@ export default function MapView({
             key={d.id}
             data={d.geojson}
             style={dayStyle(d)}
+            onEachFeature={makeOnEachFeature(d.id)}
             // @ts-ignore
             pointToLayer={(_feature: any, latlng: any) => (window as any).L ? (window as any).L.circleMarker(latlng, { radius: 5, fill: true, fillOpacity: 0.9, color: d.color ?? "#3388ff", weight: 1 }) : null}
           />
         ))}
+
+        {/* imageMarkers: render simple Marker + Popup with thumbnail */}
+        {Array.isArray(imageMarkers) && imageMarkers.map((m, i) => {
+          // ensure lat/lon are numbers
+          const lat = Number(m.lat);
+          const lon = Number(m.lon);
+          if (!isFinite(lat) || !isFinite(lon)) return null;
+          const previewSize = m.previewSize ?? 160;
+          return (
+            // @ts-ignore
+            <Marker key={`img-${i}-${lat}-${lon}`} position={[lat, lon]} title={m.title ?? `Photo ${i + 1}`}>
+              {/* @ts-ignore */}
+              <Popup>
+                <div style={{ maxWidth: previewSize }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{m.title ?? `Photo ${i + 1}`}</div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={m.url} alt={m.title ?? `photo-${i + 1}`} style={{ width: "100%", height: "auto", borderRadius: 6 }} />
+                  <div style={{ marginTop: 6, display: "flex", gap: 8 }}>
+                    <a href={m.url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>Open</a>
+                    <a href={m.url} download style={{ fontSize: 12 }}>Download</a>
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
+
       </MapContainer>
     );
   };

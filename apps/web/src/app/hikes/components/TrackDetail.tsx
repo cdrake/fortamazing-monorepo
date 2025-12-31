@@ -7,11 +7,13 @@ import { getAuth } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { getStorage, ref as storageRef, getDownloadURL } from "firebase/storage";
 import { db } from "@/lib/firebase";
-import MapView from "./MapView";
+import MapView, { ImageMarker } from "./MapView";
 import { appendToHikeWithStorage } from "../lib/hikeEditor";
 import { gpx as parseGpx, kml as parseKml } from "togeojson";
-import { convertHeicFile } from "../lib/imageHelpers"; // optional helper
+import { convertHeicFile, extractExifFromUrl } from "../lib/imageHelpers"; // optional helper
 import LightboxGallery from "./LightboxGallery";
+import { getCombinedExtentFromDayTracks } from "../lib/trackUtils";
+import ElevationHistogram from "./ElevationHistogram";
 
 type TrackDetailProps = {
   registerLoad?: (fn: (hikeId: string) => Promise<void>) => (() => void) | void;
@@ -54,19 +56,17 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryStartIndex, setGalleryStartIndex] = useState(0);
 
-  
+  const [imageMarkers, setImageMarkers] = useState<ImageMarker[]>([]);
+  const [selectedElevations, setSelectedElevations] = useState<number[] | null>(null);
 
   // expose load to parent via registerLoad
- useEffect(() => {
-  if (typeof registerLoad !== "function") return;
-  // registerLoad returns an unregister function (per the page's implementation).
-  const unregister = registerLoad(loadHike);
-  // cleanup: call the unregister function (if provided)
-  return () => {
-    try { if (typeof unregister === "function") unregister(); } catch (e) { /* ignore */ }
-  };
-}, [registerLoad, loadHike]);
-
+  useEffect(() => {
+    if (typeof registerLoad !== "function") return;
+    const unregister = registerLoad(loadHike);
+    return () => {
+      try { if (typeof unregister === "function") unregister(); } catch (e) { /* ignore */ }
+    };
+  }, [registerLoad, loadHike]);
 
   // --------------------
   // Load hike doc & assets
@@ -104,7 +104,7 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
               const resp = await fetch(d.geojsonUrl);
               fc = await resp.json();
             } catch (e) {
-              console.warn("Failed to fetch geojsonUrl", d.geojsonUrl, e);
+              // ignore
             }
           } else if (d.geojsonPath) {
             try {
@@ -119,10 +119,9 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
                 fc = await resp.json();
               }
             } catch (e) {
-              console.warn("Failed to resolve geojsonPath", d.geojsonPath, e);
+              // ignore
             }
           } else {
-            // no day geojson
             fc = { type: "FeatureCollection", features: [] };
           }
 
@@ -152,7 +151,7 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
             combined = await resp.json();
           }
         } catch (e) {
-          console.warn("failed to load combined", e);
+          // ignore
         }
         if (combined) {
           combined.features.forEach((feat: any, idx: number) => {
@@ -188,21 +187,50 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
               resolvedImages.push(maybe);
             }
           } catch (e) {
-            console.warn("resolve image failed", e);
+            // ignore per-image error
           }
         }
       }
       setImages(resolvedImages);
 
       // reset active day/segment
-      setActiveDayIndex(loadedDays.length ? 0 : null);
       if (loadedDays.length) {
-        computeAndSetProfileForDay(0, loadedDays);
+        setActiveDayIndex(0);
+        const profile0 = computeProfileFromGeojson(loadedDays[0].geojson);
+        setActiveSegmentProfile(profile0.length ? profile0 : null);
+        setSelectedElevations(profile0.length ? profile0.map(p => p.elev) : null);
       } else {
+        setActiveDayIndex(null);
         setActiveSegmentProfile(null);
+        setSelectedElevations(null);
       }
+
+      // derive image markers (try EXIF and place inside bbox)
+      const markers: ImageMarker[] = [];
+      try {
+        const ext = getCombinedExtentFromDayTracks(loadedDays);
+        const bbox = ext?.bbox ?? null;
+        for (let i = 0; i < resolvedImages.length; i++) {
+          const url = resolvedImages[i];
+          try {
+            const gps = await extractExifFromUrl(url);
+            if (!gps) continue;
+            if (bbox) {
+              const [minLon, minLat, maxLon, maxLat] = bbox;
+              if (!(gps.lon >= minLon && gps.lon <= maxLon && gps.lat >= minLat && gps.lat <= maxLat)) {
+                continue;
+              }
+            }
+            markers.push({ lat: gps.lat, lon: gps.lon, url, title: `Photo ${i+1}`, previewSize: 140 });
+          } catch (e) {
+            // ignore per-image failure
+          }
+        }
+      } catch (e) {
+        // ignore overall marker derivation errors
+      }
+      setImageMarkers(markers);
     } catch (err: any) {
-      console.error("loadHike error", err);
       setError(String(err?.message ?? err));
     } finally {
       setLoading(false);
@@ -274,16 +302,20 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
     return profile;
   }
 
-  // compute + set profile for specific day index
+  // compute + set profile for specific day index (also set selectedElevations for histogram)
   const computeAndSetProfileForDay = useCallback((dayIndex: number, daysParam?: DayTrack[]) => {
     const days = daysParam ?? dayTracks;
     if (!days || !days[dayIndex]) {
       setActiveSegmentProfile(null);
+      setSelectedElevations(null);
       return;
     }
     const fc = days[dayIndex].geojson;
     const profile = computeProfileFromGeojson(fc);
     setActiveSegmentProfile(profile.length ? profile : null);
+    setSelectedElevations(profile.length ? profile.map(p => p.elev) : null);
+    // return profile in case caller wants it
+    return profile;
   }, [dayTracks]);
 
   // when user selects a day in sidebar
@@ -316,7 +348,7 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
           const out = conv?.file ?? conv;
           if (out instanceof Blob) return URL.createObjectURL(out);
         } catch (e) {
-          console.warn("HEIC conversion failed for preview", e);
+          // fall back
         }
       }
       try { return URL.createObjectURL(f); } catch { return ""; }
@@ -362,7 +394,7 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
             dayTracksToAppend.push({ id: `append-${Date.now()}-${i}`, name: f.name, geojson: gjson, stats: computeStats(gjson) });
           }
         } catch (e) {
-          console.warn("parse error on appended gpx/kml", f.name, e);
+          // ignore parse error for this file
         }
       }
 
@@ -379,7 +411,6 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
             else if (out instanceof Blob) finalImageFiles.push(new File([out], `${f.name.replace(/\.[^.]+$/, "")}.jpg`, { type: "image/jpeg" }));
             else finalImageFiles.push(f);
           } catch (e) {
-            console.warn("HEIC conversion failed - uploading original", e);
             finalImageFiles.push(f);
           }
         } else {
@@ -457,9 +488,17 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
             <MapView
               dayTracks={dayTracks}
               combinedGeojson={combinedGeojson ?? undefined}
+              imageMarkers={imageMarkers}
               activeTileId="osm"
               onMapApiReady={() => {}}
               tileLayers={[{ id: "osm", name: "OSM", url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" }]}
+              onFeatureClick={({ elevations }) => {
+                if (elevations && elevations.length > 0) {
+                  setSelectedElevations(elevations);
+                } else {
+                  setSelectedElevations(null);
+                }
+              }}
             />
           </div>
 
@@ -471,7 +510,23 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
                 <div>Points: {activeSegmentProfile.length}</div>
                 <div>Distance: {(activeSegmentProfile[activeSegmentProfile.length - 1].dist_m / 1000).toFixed(2)} km</div>
                 <div>Elevation range: {Math.round(Math.min(...activeSegmentProfile.map(p => p.elev)))}–{Math.round(Math.max(...activeSegmentProfile.map(p => p.elev)))} m</div>
-                <div className="mt-2 text-xs text-gray-600">(Elevation histogram will appear here in the next step.)</div>
+
+                {/* Inline histogram for the selected segment */}
+                {selectedElevations && selectedElevations.length > 0 ? (
+                  <div className="mt-3">
+                    <ElevationHistogram
+                      elevations={selectedElevations}
+                      bins={40}
+                      title="Segment elevation"
+                    />
+                    <div className="mt-2">
+                      <button className="px-2 py-1 border rounded text-sm" onClick={() => setSelectedElevations(null)}>Hide elevation</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-600 mt-2">No elevation data available for this segment.</div>
+                )}
+
               </div>
             ) : (
               <div className="text-sm text-gray-600 mt-2">No active segment selected.</div>
@@ -517,35 +572,35 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
           <div className="mb-3">
             <strong>Images</strong>
             <div className="mt-2 grid grid-cols-2 gap-2">
-            {images.map((src, i) => (
+              {images.map((src, i) => (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                key={i}
-                src={src}
-                alt={`img-${i}`}
-                className="w-full h-20 object-cover rounded cursor-pointer"
-                onClick={() => { setGalleryStartIndex(i); setGalleryOpen(true); }}
+                  key={i}
+                  src={src}
+                  alt={`img-${i}`}
+                  className="w-full h-20 object-cover rounded cursor-pointer"
+                  onClick={() => { setGalleryStartIndex(i); setGalleryOpen(true); }}
                 />
-            ))}
+              ))}
             </div>
 
             {images.length > 0 && (
-            <div className="mt-2">
+              <div className="mt-2">
                 <button className="px-2 py-1 border rounded text-sm" onClick={() => { setGalleryStartIndex(0); setGalleryOpen(true); }}>
-                View photos
+                  View photos
                 </button>
-            </div>
+              </div>
             )}
 
             {/* render the lightbox */}
             {galleryOpen && (
-            <LightboxGallery
+              <LightboxGallery
                 images={images}
                 initialIndex={galleryStartIndex}
                 onClose={() => setGalleryOpen(false)}
-            />
-            )}          
-            </div>
+              />
+            )}
+          </div>
 
           <div>
             <strong>Extent</strong>

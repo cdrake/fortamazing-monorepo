@@ -1,4 +1,4 @@
-import type { FeatureCollection, Geometry, Position } from "geojson";
+import type { Feature, FeatureCollection, Geometry, Position } from "geojson";
 import * as turf from "@turf/turf";
 
 /**
@@ -13,6 +13,60 @@ export type DayTrack = {
   visible?: boolean;
   originalFile?: File | undefined;
 };
+
+// app/hikes/lib/trackUtils.ts
+
+export function extractElevationsFromFeature(feature: Feature): number[] {
+  if (!feature || !feature.geometry) return [];
+  const g = feature.geometry as Geometry;
+
+  const elevations: number[] = [];
+
+  function pushFromCoords(coords: any) {
+    // coords might be [lon, lat, ele] or [lon, lat] or objects
+    if (!coords) return;
+    if (Array.isArray(coords)) {
+      // if nested arrays (MultiLineString / MultiPolygon), recurse
+      if (Array.isArray(coords[0])) {
+        for (const c of coords as any[]) pushFromCoords(c);
+        return;
+      }
+      // coords is a single position
+      // many GPX exports use [lon, lat, ele] (ele index 2)
+      const ele = typeof coords[2] === "number" ? coords[2] : undefined;
+      if (typeof ele === "number" && !Number.isNaN(ele)) elevations.push(ele);
+    } else if (typeof coords === "object") {
+      // maybe { lat, lon, ele } or {lat, lng, altitude}
+      const ele =
+        typeof (coords as any).ele === "number" ? (coords as any).ele
+        : typeof (coords as any).elevation === "number" ? (coords as any).elevation
+        : typeof (coords as any).alt === "number" ? (coords as any).alt
+        : typeof (coords as any).altitude === "number" ? (coords as any).altitude
+        : undefined;
+      if (typeof ele === "number" && !Number.isNaN(ele)) elevations.push(ele);
+    }
+  }
+
+  try {
+    if (g.type === "LineString") {
+      pushFromCoords((g as any).coordinates);
+    } else if (g.type === "MultiLineString") {
+      for (const line of (g as any).coordinates || []) pushFromCoords(line);
+    } else if (g.type === "Polygon") {
+      for (const ring of (g as any).coordinates || []) pushFromCoords(ring);
+    } else if (g.type === "MultiPolygon") {
+      for (const poly of (g as any).coordinates || []) for (const ring of poly) pushFromCoords(ring);
+    } else if (g.type === "Point") {
+      pushFromCoords((g as any).coordinates);
+    } else if (g.type === "MultiPoint") {
+      pushFromCoords((g as any).coordinates);
+    }
+  } catch (e) {
+    // safe guard — return what we have so far
+  }
+  return elevations;
+}
+
 
 /**
  * computeStats - compute approximate total distance (meters), elevation min/max & bbox
