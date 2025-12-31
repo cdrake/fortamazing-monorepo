@@ -311,47 +311,161 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
     } catch (e) { console.warn("forceTileRedraw error", e); }
   }
 
-  // ---- addMarker helper (generic): lat, lon, url, options ----
-  async function addMarker(
-    lat: number,
-    lon: number,
-    url: string,
-    opts?: { title?: string; openOnHover?: boolean; open?: boolean }
-  ) {
-    const map = mapRef.current as any;
-    if (!map) {
-      console.warn("addMarker: map not ready");
-      return null;
-    }
+ // add this helper near the top of your component file (so markersRef, mapRef are accessible)
+function createHoverPreviewElement(imageUrl: string, title?: string, size = 120) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "map-image-hover-preview";
+  wrapper.style.position = "absolute";
+  wrapper.style.pointerEvents = "none"; // don't block map interactions
+  wrapper.style.zIndex = "10000";
+  wrapper.style.display = "none";
+  wrapper.style.opacity = "0.95"; // wrapper full opacity; image will use 0.3
+  wrapper.style.transform = "translate(-50%, -100%)"; // center above pointer
+  wrapper.style.transition = "opacity 120ms ease, transform 120ms ease";
 
-    try {
-      const Lmod = await import("leaflet");
-      const L: any = (Lmod as any).default ?? Lmod;
+  const img = document.createElement("img");
+  img.src = imageUrl;
+  img.alt = title ?? "preview";
+  img.loading = "lazy";
+  img.style.width = `${size}px`;
+  img.style.height = "auto";
+  img.style.maxHeight = `${Math.round(size * 0.75)}px`;
+  img.style.objectFit = "cover";
+  img.style.borderRadius = "6px";
+  img.style.opacity = "0.5"; // requested transparency
+  img.style.display = "block";
+  img.style.pointerEvents = "none";
 
-      const marker = L.marker([lat, lon]).addTo(map);
+  // optional: slight shadow to lift it off the map
+  wrapper.style.filter = "drop-shadow(0 6px 18px rgba(0,0,0,0.25))";
 
-      const popupHtml = `
-        <div style="font-size:14px;">
-          ${opts?.title ? `<strong>${opts.title}</strong><br/>` : ""}
-          <a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>
-        </div>
-      `;
+  wrapper.appendChild(img);
+  return wrapper;
+}
 
-      marker.bindPopup(popupHtml);
-
-      if (opts?.openOnHover) {
-        marker.on("mouseover", () => marker.openPopup());
-        marker.on("mouseout", () => marker.closePopup());
-      }
-
-      if (opts?.open) marker.openPopup();
-
-      return marker;
-    } catch (e) {
-      console.warn("addMarker failed", e);
-      return null;
-    }
+async function addMarker(
+  lat: number,
+  lon: number,
+  imageUrl: string,
+  opts?: {
+    title?: string;
+    openInNewTab?: boolean; // default true
+    previewSize?: number;   // px, default 120
   }
+) {
+  const map = mapRef.current as any;
+  if (!map) {
+    console.warn("addMarker: map not ready");
+    return null;
+  }
+
+  try {
+    const Lmod = await import("leaflet");
+    const L: any = (Lmod as any).default ?? Lmod;
+
+    const marker = L.marker([lat, lon], {
+      title: opts?.title ?? "Open image",
+      keyboard: true,
+    }).addTo(map);
+
+    // create hover preview DOM and append to map container
+    const previewSize = opts?.previewSize ?? 120;
+    const previewEl = createHoverPreviewElement(imageUrl, opts?.title, previewSize);
+    const mapContainer = (map.getContainer && map.getContainer()) || document.querySelector(".leaflet-container");
+    if (mapContainer && mapContainer.appendChild) {
+      mapContainer.appendChild(previewEl);
+    } else {
+      // fallback: append to body (shouldn't happen for leaflet)
+      document.body.appendChild(previewEl);
+    }
+
+    // helper to position preview over the marker (or pointer)
+    const showPreviewAt = (point: { x: number; y: number }) => {
+      previewEl.style.left = `${Math.round(point.x)}px`;
+      previewEl.style.top = `${Math.round(point.y - 8)}px`; // lift slightly above pointer
+      previewEl.style.display = "block";
+      // slight entrance animation
+      previewEl.style.opacity = "1";
+      previewEl.style.transform = "translate(-50%, -105%) scale(1)";
+    };
+    const hidePreview = () => {
+      previewEl.style.opacity = "0";
+      previewEl.style.transform = "translate(-50%, -105%) scale(0.98)";
+      // keep in DOM but hide after transition
+      setTimeout(() => {
+        try { previewEl.style.display = "none"; } catch {}
+      }, 140);
+    };
+
+    // On marker hover: compute container point and show preview
+    const onMouseOver = (ev: any) => {
+      try {
+        // prefer cursor position if available (ev.originalEvent), else marker center
+        const origEvt = ev?.originalEvent;
+        let point;
+        if (origEvt && typeof origEvt.clientX === "number") {
+          // convert client coords to container point
+          const rect = mapContainer.getBoundingClientRect();
+          point = { x: origEvt.clientX - rect.left, y: origEvt.clientY - rect.top };
+        } else {
+          // compute marker center pixel
+          const latlng = (ev?.latlng) ?? marker.getLatLng();
+          const p = map.latLngToContainerPoint(latlng);
+          point = { x: p.x, y: p.y };
+        }
+        showPreviewAt(point);
+      } catch (e) {
+        // fallback: position at map center
+        const center = map.latLngToContainerPoint(map.getCenter());
+        showPreviewAt({ x: center.x, y: center.y });
+      }
+    };
+
+    const onMouseOut = () => hidePreview();
+
+    // Attach events: mouseover/mouseout for desktop; for touch, we won't show hover preview
+    marker.on("mouseover", onMouseOver);
+    marker.on("mouseout", onMouseOut);
+
+    // Also show preview when hovering marker's icon element (safer)
+    try {
+      const iconEl = marker.getElement?.();
+      if (iconEl) {
+        iconEl.addEventListener("mouseenter", (ev: MouseEvent) => {
+          // translate global client coords to container coords
+          const rect = mapContainer.getBoundingClientRect();
+          const ce = (ev as MouseEvent);
+          showPreviewAt({ x: ce.clientX - rect.left, y: ce.clientY - rect.top });
+        });
+        iconEl.addEventListener("mouseleave", () => hidePreview());
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // click: open the full image (no popup)
+    const open = () => {
+      if (opts?.openInNewTab === false) {
+        window.location.href = imageUrl;
+      } else {
+        window.open(imageUrl, "_blank", "noopener,noreferrer");
+      }
+    };
+    marker.on("click", open);
+    marker.on("keypress", (e: any) => {
+      if (e.originalEvent?.key === "Enter") open();
+    });
+
+    // keep a reference to preview element on the marker so it can be cleaned up later
+    (marker as any)._imagePreviewEl = previewEl;
+
+    return marker;
+  } catch (e) {
+    console.warn("addMarker failed", e);
+    return null;
+  }
+}
+
 
   // ---- demo helper used previously (kept small) ----
   async function addDemoMarkerAtCenter() {
@@ -359,7 +473,7 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
     const [minLon, minLat, maxLon, maxLat] = combinedStats.bounds;
     const centerLat = (minLat + maxLat) / 2;
     const centerLon = (minLon + maxLon) / 2;
-    await addMarker(centerLat, centerLon, "https://www.cnn.com", { title: "Demo link", openOnHover: true, open: true });
+    await addMarker(centerLat, centerLon, "https://www.cnn.com", { title: "Demo link"});
   }
 
   // ---- handle files parsing (GPX/KML) ----
@@ -762,7 +876,7 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
             const [minLon, minLat, maxLon, maxLat] = ext.bbox;
             console.debug("[loadHike] comparing gps to bbox", { index: i, gps, bbox: ext.bbox });
             if (gps.lon >= minLon && gps.lon <= maxLon && gps.lat >= minLat && gps.lat <= maxLat) {
-              const marker = await addMarker(gps.lat, gps.lon, url, { title: `Photo ${i+1}`, openOnHover: true });
+              const marker = await addMarker(gps.lat, gps.lon, url, { title: `Photo ${i+1}` });
               console.debug("[loadHike] addMarker returned", { index: i, marker });
               if (marker) markersRef.current.push(marker);
               else console.warn("[loadHike] addMarker returned falsy marker", { index: i, url });
@@ -886,7 +1000,7 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
             // show a quick marker from the original file so the user sees it immediately
             try {
               const markerPreviewUrl = URL.createObjectURL(f);
-              const marker = await addMarker(gps.lat, gps.lon, markerPreviewUrl, { title: f.name, openOnHover: false });
+              const marker = await addMarker(gps.lat, gps.lon, markerPreviewUrl, { title: f.name });
               if (marker) markersRef.current.push(marker);
               // NOTE: we don't revoke markerPreviewUrl here because marker popup may use it;
               // if you want to revoke it later, store it and revoke when clearing markers.

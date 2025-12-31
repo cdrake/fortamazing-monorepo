@@ -39,3 +39,16 @@ body {
   image-rendering: crisp-edges;
   will-change: transform;
 }
+
+/* Remove Leaflet tooltip bubble entirely */
+.leaflet-tooltip.image-preview-tooltip {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* Remove the little arrow / nub */
+.leaflet-tooltip.image-preview-tooltip::before {
+  display: none !important;
+}
