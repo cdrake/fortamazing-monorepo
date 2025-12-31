@@ -539,6 +539,15 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
           <div style={{ height: 420, borderRadius: 6, overflow: "hidden", border: "1px solid #eee" }}>
             <MapView
               dayTracks={dayTracks}
+              activeTrackId={dayTracks?.[activeDayIndex ?? -1]?.id}
+              onTrackClick={(trackId: string) => {
+                // find index and set active day + compute profile
+                const idx = dayTracks.findIndex((t) => t.id === trackId);
+                if (idx >= 0) {
+                  setActiveDayIndex(idx);
+                  computeAndSetProfileForDay(idx);
+                }
+              }}
               combinedGeojson={combinedGeojson ?? undefined}
               imageMarkers={imageMarkers}
               activeTileId="osm"

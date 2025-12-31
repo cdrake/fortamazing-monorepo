@@ -41,6 +41,8 @@ type MapViewProps = {
   zoom?: number;
   imageMarkers?: ImageMarker[];
   onFeatureClick?: (payload: { elevations: number[]; feature: any; dayTrackId?: string }) => void;
+  activeTrackId?: string;
+  onTrackClick?: (trackId: string) => void;
 };
 
 export default function MapView({
@@ -55,6 +57,8 @@ export default function MapView({
   zoom = 10,
   imageMarkers = [],
   onFeatureClick,
+  activeTrackId,
+  onTrackClick,
 }: MapViewProps) {
   // react-leaflet module (dynamically imported)
   const [RL, setRL] = useState<any | null>(null);
@@ -211,15 +215,48 @@ export default function MapView({
         )}
 
         {dayTracks.map((d) => d.visible !== false && d.geojson && (
-          // @ts-ignore
-          <GeoJSON
+        // @ts-ignore
+        <GeoJSON
             key={d.id}
             data={d.geojson}
-            style={dayStyle(d)}
-            onEachFeature={makeOnEachFeature(d.id)}
+            // dynamic style — heavier if active
+            style={() => {
+            const isActive = d.id === activeTrackId;
+            return {
+                color: d.color ?? "#3388ff",
+                weight: isActive ? 7 : 4,
+                opacity: isActive ? 1.0 : 0.85,
+                dashArray: isActive ? undefined : "0",
+                lineJoin: "round",
+                lineCap: "round",
+            };
+            }}
+            // onEachFeature to attach click handler and bring-to-front behavior
+            onEachFeature={(feature: any, layer: any) => {
+            try {
+                layer.on("click", (ev: any) => {
+                // call parent's callback (if provided)
+                try { onTrackClick?.(d.id); } catch {}
+                // emphasize the clicked layer immediately (visual feedback)
+                try {
+                    layer.setStyle({ weight: 8, opacity: 1.0 });
+                    if (typeof layer.bringToFront === "function") layer.bringToFront();
+                } catch (e) { /* ignore */ }
+                });
+                // optional hover pointer
+                layer.on("mouseover", () => {
+                try { layer.setStyle({ weight: Math.min((layer.options?.weight ?? 4) + 2, 10) }); } catch {}
+                });
+                layer.on("mouseout", () => {
+                // restore style (let parent re-render decide final)
+                try { /* nothing, parent style will apply on re-render */ } catch {}
+                });
+            } catch (e) { /* ignore per-layer attach errors */ }
+            }}
+            // ensure points are rendered as circle markers (if any)
             // @ts-ignore
             pointToLayer={(_feature: any, latlng: any) => (window as any).L ? (window as any).L.circleMarker(latlng, { radius: 5, fill: true, fillOpacity: 0.9, color: d.color ?? "#3388ff", weight: 1 }) : null}
-          />
+        />
         ))}
 
         {/* imageMarkers: render simple Marker + Popup with thumbnail */}
