@@ -11,7 +11,9 @@ import {
   DocumentData,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+
 import TrackUploader from "./components/TrackUploader";
+import TrackDetail from "./components/TrackDetail";
 
 type HikeDoc = {
   id: string;
@@ -30,15 +32,28 @@ export default function HikesPage() {
   const [error, setError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
-  // ref that will be filled by TrackUploader via registerLoad
-  const uploaderLoadRef = useRef<((hikeId: string) => Promise<void>) | null>(null);
+  // uploader modal state
+  const [uploaderOpen, setUploaderOpen] = useState(false);
 
-  // register function passed to TrackUploader
+  // detail modal state
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  // refs for load handlers exposed by child components
+  const uploaderLoadRef = useRef<((hikeId: string) => Promise<void>) | null>(null);
+  const detailLoadRef = useRef<((hikeId: string) => Promise<void>) | null>(null);
+
+  // register functions passed to children
   const registerUploaderLoad = useCallback((fn: (hikeId: string) => Promise<void>) => {
     uploaderLoadRef.current = fn;
-    // return a cleanup/unregister function if caller wants to support it (not required)
     return () => {
       if (uploaderLoadRef.current === fn) uploaderLoadRef.current = null;
+    };
+  }, []);
+
+  const registerDetailLoad = useCallback((fn: (hikeId: string) => Promise<void>) => {
+    detailLoadRef.current = fn;
+    return () => {
+      if (detailLoadRef.current === fn) detailLoadRef.current = null;
     };
   }, []);
 
@@ -54,10 +69,8 @@ export default function HikesPage() {
       const items: HikeDoc[] = snap.docs
         .map((d) => {
           const data = d.data() as any;
-          // Only include docs created by the uploader helper (it writes a `days` array)
           if (!data || !Array.isArray(data.days)) return null;
 
-          // compute total distance if days[].stats.distance_m exist (sum)
           let totalDistance: number | null = null;
           try {
             const sum = (data.days || []).reduce((acc: number, day: any) => {
@@ -97,46 +110,77 @@ export default function HikesPage() {
     const unsub = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       if (user) {
-        // load hikes for this user (these are the docs created by saveAllWithStorage)
         loadUserHikes(user);
       } else {
-        // signed out: clear list
         setHikes([]);
       }
     });
-
     return () => unsub();
   }, [loadUserHikes]);
+
+  // open uploader modal (for new upload)
+  const openUploader = useCallback(() => {
+    setUploaderOpen(true);
+  }, []);
+
+  // open detail modal and ask the TrackDetail child to load the hikeId
+  const openDetailAndLoad = useCallback(async (hikeId: string) => {
+    setDetailOpen(true);
+
+    // Poll for the detail's load handler to register (short timeout)
+    const start = Date.now();
+    const timeoutMs = 3000;
+    const intervalMs = 80;
+
+    while (Date.now() - start < timeoutMs) {
+      if (detailLoadRef.current) {
+        try {
+          await detailLoadRef.current(hikeId);
+        } catch (err) {
+          console.error("Error calling TrackDetail load handler:", err);
+          // show friendly message
+          alert("Failed to load the hike in detail view — check console for details.");
+        }
+        return;
+      }
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((res) => setTimeout(res, intervalMs));
+    }
+
+    // timed out waiting for child to register
+    console.warn("Timed out waiting for TrackDetail to register load handler");
+    alert("Detail view not ready yet. Try again in a moment.");
+  }, []);
 
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">My Hikes</h1>
 
-      <div className="mb-6">
-        {/* Pass registerLoad so the page can ask the uploader to load a saved hike into the preview */}
-        <TrackUploader registerLoad={registerUploaderLoad} />
-      </div>
-
-      <div className="mb-4">
-        {currentUser ? (
-          <div className="text-sm text-gray-700">Signed in as {currentUser.displayName ?? currentUser.email}</div>
-        ) : (
-          <div className="text-sm text-gray-700">Not signed in — sign in to see your uploaded hikes.</div>
-        )}
-      </div>
-
-      <div className="mb-4">
+      <div className="mb-6 flex items-center gap-3">
         <button
-          className="px-3 py-1 border rounded mr-2"
+          className="px-3 py-1 border rounded bg-white"
+          onClick={openUploader}
+        >
+          New Upload
+        </button>
+
+        <button
+          className="px-3 py-1 border rounded"
           onClick={() => {
             const user = getAuth().currentUser;
             if (user) loadUserHikes(user);
             else setError("Sign in to refresh your hikes");
           }}
-          disabled={!currentUser || loading}
+          disabled={!currentUser}
         >
           Refresh my hikes
         </button>
+
+        {currentUser ? (
+          <div className="text-sm text-gray-700 ml-auto">Signed in as {currentUser.displayName ?? currentUser.email}</div>
+        ) : (
+          <div className="text-sm text-gray-700 ml-auto">Not signed in — sign in to see your uploaded hikes.</div>
+        )}
       </div>
 
       {loading && <p>Loading your hikes…</p>}
@@ -167,29 +211,19 @@ export default function HikesPage() {
               <div className="flex flex-col items-end gap-2">
                 <div className="text-sm text-gray-500">{h.public ? "Public" : "Private"}</div>
 
-                {/* Load button: asks the uploader to load this hike into its preview map */}
                 <div>
                   <button
                     className="px-2 py-1 border rounded text-sm"
                     onClick={async () => {
                       const authUser = getAuth().currentUser;
                       if (!authUser) {
-                        alert("Please sign in to load this hike into the preview.");
+                        alert("Please sign in to view this hike.");
                         return;
                       }
-                      if (!uploaderLoadRef.current) {
-                        alert("Uploader not ready yet. Try again in a moment.");
-                        return;
-                      }
-                      try {
-                        await uploaderLoadRef.current(h.id);
-                      } catch (err) {
-                        console.error("Failed to load hike into uploader:", err);
-                        alert("Failed to load hike — check console for details.");
-                      }
+                      await openDetailAndLoad(h.id);
                     }}
                   >
-                    Load
+                    View
                   </button>
                 </div>
               </div>
@@ -210,6 +244,53 @@ export default function HikesPage() {
           </li>
         ))}
       </ul>
+
+      {/* TrackDetail modal (read-only view) */}
+      {detailOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-start md:items-center justify-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Track detail"
+        >
+          <div className="absolute inset-0 bg-black/50" onClick={() => setDetailOpen(false)} />
+
+          <div className="relative w-full max-w-6xl bg-white rounded-t-xl md:rounded-xl shadow-lg p-4 m-4 overflow-auto" style={{ maxHeight: "90vh" }}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold">Track detail</h2>
+              <button className="px-2 py-1 border rounded" onClick={() => setDetailOpen(false)} aria-label="Close detail">Close</button>
+            </div>
+
+            <div>
+              {/* Pass registerLoad so TrackDetail can expose a load(hikeId) function to this page */}
+              <TrackDetail registerLoad={registerDetailLoad} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TrackUploader modal */}
+      {uploaderOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-start md:items-center justify-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Track uploader"
+        >
+          <div className="absolute inset-0 bg-black/50" onClick={() => setUploaderOpen(false)} />
+
+          <div className="relative w-full max-w-6xl bg-white rounded-t-xl md:rounded-xl shadow-lg p-4 m-4 overflow-auto" style={{ maxHeight: "90vh" }}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold">Track uploader</h2>
+              <button className="px-2 py-1 border rounded" onClick={() => setUploaderOpen(false)} aria-label="Close uploader">Close</button>
+            </div>
+
+            <div>
+              <TrackUploader registerLoad={registerUploaderLoad} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -20,7 +20,7 @@ import { db } from "@/lib/firebase";
 import { gpx as parseGpx, kml as parseKml } from "togeojson";
 import type { Map as LeafletMap } from "leaflet";
 import ClientFileInput from "@/app/hikes/components/ClientFileInput";
-import { saveAllWithStorage } from "../lib/hikeUploader";
+import { createHikeWithStorage } from "../lib/hikeEditor";
 import { DayTrack } from "../lib/geo";
 import { getStorage, ref as storageRef, getDownloadURL } from "firebase/storage";
 import { convertHeicFile, extractExifFromFile, extractExifFromUrl, insertGpsExifIntoJpeg, LatLon } from "../lib/imageHelpers";
@@ -745,7 +745,7 @@ async function addMarker(
     try {
       if (!dayTracks || dayTracks.length === 0) throw new Error("No tracks to save");
       const chosenTitle = title && title.trim().length ? title.trim() : `Multi-day hike: ${fileNameList.join(", ")}`;
-      const result = await saveAllWithStorage({
+      const result = await createHikeWithStorage({
         title: chosenTitle,
         descriptionMd,
         imageFiles,
