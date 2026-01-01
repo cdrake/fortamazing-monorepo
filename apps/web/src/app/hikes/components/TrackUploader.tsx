@@ -24,6 +24,7 @@ import { createHikeWithStorage } from "../lib/hikeEditor";
 import { DayTrack } from "../lib/geo";
 import { getStorage, ref as storageRef, getDownloadURL } from "firebase/storage";
 import { convertHeicFile, extractExifFromFile, extractExifFromUrl, insertGpsExifIntoJpeg, LatLon } from "../lib/imageHelpers";
+import MarkdownEditor from "./MarkdownEditor";
 
 /**
  * TrackUploader component
@@ -1279,7 +1280,13 @@ async function addMarker(
 
         <div style={{ marginTop: 8 }}>
           <label style={{ display: "block", fontWeight: 600 }}>Description (Markdown)</label>
-          <textarea value={descriptionMd} onChange={(e) => setDescriptionMd(e.target.value)} placeholder="Add notes..." rows={6} className="border p-2 rounded w-full" />
+          <MarkdownEditor
+            value={descriptionMd}
+            onChange={setDescriptionMd}
+            editable={true}
+            defaultLayout="split"
+            rows={8}
+          />
         </div>
 
         <div style={{ marginTop: 8 }}>

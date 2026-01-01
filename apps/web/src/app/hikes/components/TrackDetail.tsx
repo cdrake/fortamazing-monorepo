@@ -14,8 +14,7 @@ import { convertHeicFile, extractExifFromFile, extractExifFromUrl, insertGpsExif
 import LightboxGallery from "./LightboxGallery";
 import { getCombinedExtentFromDayTracks } from "../lib/trackUtils";
 import ElevationHistogram from "./ElevationHistogram";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import MarkdownEditor from "./MarkdownEditor";
 
 type TrackDetailProps = {
   registerLoad?: (fn: (hikeId: string) => Promise<void>) => (() => void) | void;
@@ -49,6 +48,9 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
   const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [savingEdits, setSavingEdits] = useState(false);
+  const [editedTitle, setEditedTitle] = useState<string>("");
+  const [editedDescriptionMd, setEditedDescriptionMd] = useState<string>("");
+
 
   // active segment/day selection (index into dayTracks)
   const [activeDayIndex, setActiveDayIndex] = useState<number | null>(null);
@@ -63,6 +65,14 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
 
   const mapRef = useRef<any | null>(null);
   const markersRef = useRef<any[]>([]);
+
+  // seed edit fields when entering edit mode or when title/description change
+  useEffect(() => {
+    if (isEdit) {
+      setEditedTitle(title ?? "");
+      setEditedDescriptionMd(descriptionMd ?? "");
+    }
+  }, [isEdit, title, descriptionMd]);
 
   // expose load to parent via registerLoad
   useEffect(() => {
@@ -828,37 +838,23 @@ async function addMarker(lat: number, lon: number, imageUrl: string, opts?: { ti
               ))}
             </div>
           </div>
-          {/* Markdown description (under Tracks, above Images) */}
+          {/* Description block */}
           <div className="mb-3">
             <strong>Description</strong>
-            <div className="mt-2 text-sm">
-              {descriptionMd ? (
-                <div className="prose max-w-none text-sm">
-                  {/* debug: uncomment to inspect raw content in console */}
-                  {/*{(() => { try { console.debug("descriptionMd:", descriptionMd); } catch {} })()*/}
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    // If you want to allow raw HTML in markdown (be careful), add:
-                    // rehypePlugins={[rehypeRaw, rehypeSanitize]}
-                    components={{
-                      // give headings, lists, and list items reasonable classes so Tailwind can't hide them
-                      h1: ({node, ...props}) => <h1 className="text-xl font-semibold mt-2" {...props} />,
-                      h2: ({node, ...props}) => <h2 className="text-lg font-semibold mt-2" {...props} />,
-                      h3: ({node, ...props}) => <h3 className="text-base font-medium mt-2" {...props} />,
-                      ul: ({node, ...props}) => <ul className="list-disc ml-5 mt-1" {...props} />,
-                      ol: ({node, ...props}) => <ol className="list-decimal ml-5 mt-1" {...props} />,
-                      li: ({node, ...props}) => <li className="mt-1" {...props} />,
-                      p: ({node, ...props}) => <p className="mt-1" {...props} />,
-                      a: ({node, ...props}) => <a className="underline" {...props} />,
-                    }}
-                  >
-                    {/* normalize escaped newlines like "\\n" -> real newlines so "lists" and headings parse */}
-                    {descriptionMd.replace(/\\n/g, "\n")}
-                  </ReactMarkdown>
-                </div>
-              ) : (
-                <div className="text-sm text-gray-500">No description</div>
-              )}
+            <div className="mt-2">
+              <MarkdownEditor
+                value={isEdit ? editedDescriptionMd : descriptionMd}
+                onChange={(v) => {
+                  if (isEdit) setEditedDescriptionMd(v);
+                  else {
+                    // optionally allow in-place editing even when not in "isEdit" mode:
+                    // setEditedDescriptionMd(v); setIsEdit(true);
+                  }
+                }}
+                editable={isEdit}
+                defaultLayout={isEdit ? "split" : "preview-only"}
+                rows={10}
+              />
             </div>
           </div>
 
