@@ -67,6 +67,30 @@ async function _uploadToStorage(file: File | Blob, destPath: string, returnDownl
   return { gsPath, downloadUrl: undefined };
 }
 
+// replace undefined values with null (safe for Firestore) or remove keys if you prefer
+function sanitizeForFirestore<T>(obj: T): T {
+  if (obj === undefined) return null as any;
+  if (obj === null) return obj;
+  if (Array.isArray(obj)) {
+    return obj.map((v) => sanitizeForFirestore(v)) as any;
+  }
+  if (typeof obj === "object") {
+    const out: any = {};
+    for (const [k, v] of Object.entries(obj as any)) {
+      if (v === undefined) {
+        // either omit the key or set to null:
+        // out[k] = null;
+        continue; // omit undefined keys
+      } else {
+        out[k] = sanitizeForFirestore(v);
+      }
+    }
+    return out;
+  }
+  return obj;
+}
+
+
 /**
  * createHikeWithStorage
  * - Creates a new hike doc under users/{ownerUid}/hikes/{generatedId}
@@ -85,7 +109,7 @@ export async function createHikeWithStorage(params: {
 }) {
   const {
     title,
-    descriptionMd,
+    descriptionMd = "",
     ownerUid,
     dayTracks = [],
     combinedGeojson,
@@ -93,6 +117,7 @@ export async function createHikeWithStorage(params: {
     visibility = "private",
     storeDownloadUrls = false,
   } = params;
+
 
   const authUser = getAuth().currentUser;
   const uid = ownerUid ?? authUser?.uid;
@@ -149,7 +174,7 @@ export async function createHikeWithStorage(params: {
   }
 
   // 4) create the hike document
-  const docPayload: any = {
+  let docPayload: any = {
     title: title ?? `Hike ${new Date().toISOString()}`,
     descriptionMd: descriptionMd ?? "",
     owner: { uid }, // optionally include more owner info
@@ -158,6 +183,8 @@ export async function createHikeWithStorage(params: {
     days: uploadedDays.length ? uploadedDays : [],
     images: uploadedImages.length ? uploadedImages : [],
   };
+  docPayload = sanitizeForFirestore(docPayload);
+  
   if (combinedPath) docPayload.combinedPath = combinedPath;
   if (combinedUrl) docPayload.combinedUrl = combinedUrl;
 

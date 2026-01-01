@@ -211,6 +211,13 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
       markers.forEach((m: any) => {
         try { m.remove?.(); } catch {}
         try { (m as any).off?.(); } catch {}
+        try {
+          const el = (m as any)._imagePreviewEl;
+          if (el && el.parentNode) el.parentNode.removeChild(el);
+        } catch {}
+        try {
+          if ((m as any)._mobilePreviewCleanup) (m as any)._mobilePreviewCleanup();
+        } catch {}
       });
       markersRef.current = [];
     } catch (e) {
@@ -1067,7 +1074,7 @@ async function addMarker(
     return () => clearInterval(id);
   }, []);
 
-  // image input change handler (local preview)
+  // image input change handler (local preview) — UPDATED to match TrackDetail behavior:
     const onImageInputChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
   if (!e.target.files) return;
   const incoming = Array.from(e.target.files);
@@ -1088,18 +1095,23 @@ async function addMarker(
       // 1) extract EXIF from original file BEFORE any conversion (best-effort)
       let gps: LatLon = null;
       try {
-        gps = await extractExifFromFile(f);
+        if (typeof extractExifFromFile === "function") {
+          gps = await extractExifFromFile(f);
+        } else {
+          gps = null;
+        }
         console.debug("[onImageInputChange] extracted gps from original", { name: f.name, gps });
         if (gps && extent && extent.bbox) {
-          const [minLon, minLat, maxLon, maxLat] = extent.bbox;
+          const [minLon, minLat, maxLon, maxLat] = extent.bbox as [number, number, number, number];
           if (gps.lon >= minLon && gps.lon <= maxLon && gps.lat >= minLat && gps.lat <= maxLat) {
             // show a quick marker from the original file so the user sees it immediately
             try {
               const markerPreviewUrl = URL.createObjectURL(f);
-              const marker = await addMarker(gps.lat, gps.lon, markerPreviewUrl, { title: f.name });
+              const marker = await addMarker(gps.lat, gps.lon, markerPreviewUrl, { title: f.name, previewSize: 140 });
               if (marker) markersRef.current.push(marker);
-              // NOTE: we don't revoke markerPreviewUrl here because marker popup may use it;
-              // if you want to revoke it later, store it and revoke when clearing markers.
+              // NOTE: we don't revoke markerPreviewUrl here because marker preview may use it;
+              // push marker preview into previews so user sees something immediately
+              previewUrls.push(markerPreviewUrl);
             } catch (e) {
               console.warn("[onImageInputChange] failed to add marker from extracted EXIF:", e);
             }
@@ -1114,46 +1126,48 @@ async function addMarker(
       // 2) convert HEIC -> JPEG if needed, else keep original
       const ext = (f.name.split(".").pop() || "").toLowerCase();
       if (ext === "heic" || ext === "heif") {
-  try {
-    const converted = await convertHeicFileToJpegFile(f);
+        try {
+          // use converter directly (returns file/blob or convert result)
+          const convRes: any = await convertHeicFile(f, { type: "image/jpeg", quality: 0.92 });
+          const out = convRes?.file ?? convRes;
+          let convertedBlob: Blob;
+          if (isBlobLike(out) || out instanceof File) {
+            convertedBlob = out as Blob;
+          } else {
+            throw new Error("convertHeicFile returned unsupported value");
+          }
 
-    let convertedBlob: Blob;
-    if (isBlobLike(converted)) {
-      convertedBlob = converted;
-    } else if (converted && isBlobLike((converted as any).file)) {
-      convertedBlob = (converted as any).file;
-    } else {
-      throw new Error("convertHeicFileToJpegFile returned unsupported value");
-    }
+          // insert GPS EXIF into converted JPEG (if we have gps)
+          let patchedBlob: Blob = convertedBlob;
+          if (gps && typeof gps.lat === "number" && typeof gps.lon === "number" && typeof insertGpsExifIntoJpeg === "function") {
+            try {
+              patchedBlob = await insertGpsExifIntoJpeg(convertedBlob, gps);
+            } catch (e) {
+              console.warn("[onImageInputChange] insertGpsExifIntoJpeg failed", e);
+            }
+          }
 
-    // insert GPS EXIF into converted JPEG
-    const patchedBlob = await insertGpsExifIntoJpeg(
-      convertedBlob,
-      gps && typeof gps.lat === "number" && typeof gps.lon === "number" ? gps : null
-    );
+          const filenameBase = (f.name || "image").replace(/\.[^.]+$/, "");
+          const finalFile =
+            patchedBlob instanceof File
+              ? patchedBlob
+              : new File([patchedBlob], `${filenameBase}.jpg`, { type: "image/jpeg" });
 
-    const filenameBase = (f.name || "image").replace(/\.[^.]+$/, "");
-    const finalFile =
-      patchedBlob instanceof File
-        ? patchedBlob
-        : new File([patchedBlob], `${filenameBase}.jpg`, { type: "image/jpeg" });
-
-    finalFiles.push(finalFile);
-    previewUrls.push(URL.createObjectURL(finalFile));
-  } catch (convErr) {
-    console.warn(
-      "[onImageInputChange] HEIC conversion or EXIF insert failed, falling back to original",
-      convErr
-    );
-    finalFiles.push(f);
-    try {
-      previewUrls.push(URL.createObjectURL(f));
-    } catch {
-      previewUrls.push("");
-    }
-  }
-}
- else {
+          finalFiles.push(finalFile);
+          try { previewUrls.push(URL.createObjectURL(finalFile)); } catch { previewUrls.push(""); }
+        } catch (convErr) {
+          console.warn(
+            "[onImageInputChange] HEIC conversion or EXIF insert failed, falling back to original",
+            convErr
+          );
+          finalFiles.push(f);
+          try {
+            previewUrls.push(URL.createObjectURL(f));
+          } catch {
+            previewUrls.push("");
+          }
+        }
+      } else {
         // not HEIC — keep as-is (may already contain EXIF)
         finalFiles.push(f);
         try { previewUrls.push(URL.createObjectURL(f)); } catch { previewUrls.push(""); }
