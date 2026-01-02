@@ -26,7 +26,7 @@ export default function CategoryPage() {
   // ✅ Fetch posts dynamically with SWR
   const { data: posts, error } = useSWR(
     category ? `category/${category}` : null,
-    () => fetchPosts({ categories: [category] })
+    category ? () => fetchPosts({ categories: [category] }) : null
   )
 
   if (error) return <p>Failed to load posts for {category}</p>
@@ -34,7 +34,7 @@ export default function CategoryPage() {
 
   return (
     <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">{category.toUpperCase()} Posts</h1>
+      <h1 className="text-2xl font-bold mb-4">{category!.toUpperCase()} Posts</h1>
       <PostList posts={posts} isSocialAdmin={isSocialAdmin} />
     </div>
   )

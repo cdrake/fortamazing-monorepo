@@ -1,32 +1,80 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // ✅ Allow all authenticated users to read posts
-    // ✅ Only the owner can create, update, and delete their own posts
+
+    // ----------------------------------------
+    // POSTS
+    // ----------------------------------------
     match /posts/{postId} {
       allow read: if true;
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null
+                     && request.auth.uid == request.resource.data.userId;
+      allow update, delete: if request.auth != null
+                            && request.auth.uid == resource.data.userId;
     }
 
-   // ✅ Allow users to read and write their own profile
+    // ----------------------------------------
+    // USER PROFILES
+    // ----------------------------------------
     match /users/{userId} {
-      allow read: if true; // Adjust this if needed
-      allow update, delete: if request.auth != null && request.auth.uid == userId;
-      allow write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // ✅ Allow fetching all usernames (but not full profiles)
-    match /users {
-      allow read: if true; 
+      allow read: if true;
+      allow update, delete, write: if request.auth != null
+                                   && request.auth.uid == userId;
     }
 
-    // ✅ Restrict invite management to social-admins
+    match /users {
+      allow read: if true;
+    }
+
+    // ----------------------------------------
+    // INVITES
+    // ----------------------------------------
     match /invites/{inviteId} {
       allow read, write: if request.auth != null &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "social-admin";
+    }
+
+    // ----------------------------------------
+    // HIKES (now stored under users/{uid}/hikes/{hikeId})
+    // - Document shape (recommended):
+    //   {
+    //     owner: { uid: "...", email: "...", displayName: "..." },
+    //     public: true|false,
+    //     title: "...",
+    //     descriptionMd: "...",
+    //     days: [ { id: "...", name: "...", stats: {...}, color: "...", geojsonUrl: "..." }, ... ],
+    //     combinedUrl: "https://...json",
+    //     images: [{ url: "...", filename: "...", contentType: "..." }],
+    //     createdAt: <timestamp>
+    //   }
+    // ----------------------------------------
+
+    // Allow collectionGroup queries (list) for any hikes subcollection
+    match /{anyPath=**}/hikes {
+      allow list: if true; // allows collectionGroup list queries if you want public lists
+    }
+
+    // Generic access rules for any single hike doc in any subcollection named "hikes"
+    match /{anyPath=**}/hikes/{hikeId} {
+
+      // GET: public OR owner
+      allow get: if resource.data.public == true
+                 || (request.auth != null && request.auth.uid == resource.data.owner.uid);
+
+      // LIST: covered by parent /{anyPath=**}/hikes above (collectionGroup)
+      allow list: if true;
+
+      // CREATE: only authenticated users and the request must assert the owner.uid equals auth.uid
+      allow create: if request.auth != null
+                    && request.resource.data.owner is map
+                    && request.resource.data.owner.uid == request.auth.uid
+                    // basic shape checks (optional but recommended)
+                    && request.resource.data.title is string
+                    && request.resource.data.createdAt != null;
+
+      // UPDATE / DELETE: only owner can modify/delete after creation
+      allow update, delete: if request.auth != null
+                            && request.auth.uid == resource.data.owner.uid;
     }
   }
 }

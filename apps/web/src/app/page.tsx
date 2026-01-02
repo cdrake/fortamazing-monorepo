@@ -38,7 +38,7 @@ export default function HomePage() {
     const loadPosts = async () => {
       setLoading(true);
       try {
-        const pathParts = pathname!.split("/").filter(Boolean); // Remove empty parts
+        const pathParts = pathname!.split("/").filter(Boolean);
 
         const filter: {
           categories?: string[];
@@ -49,12 +49,12 @@ export default function HomePage() {
 
         // ✅ Filter by category or user
         if (pathParts[0] === "c" && pathParts.length >= 2) {
-          filter.categories = [pathParts[1]]; 
+          filter.categories = [pathParts[1]];
           if (pathParts.length >= 3) {
-            filter.subcategories = [pathParts[2]]; 
+            filter.subcategories = [pathParts[2]];
           }
         } else if (pathParts[0] === "u" && pathParts.length >= 2) {
-          filter.userId = pathParts[1]; 
+          filter.userId = pathParts[1];
         }
 
         const fetchedPosts = await fetchPosts(filter);
@@ -75,7 +75,7 @@ export default function HomePage() {
 
       {/* ✅ Category Links */}
       <h2 className="text-lg font-semibold">Browse by Category</h2>
-      <div className="flex gap-4 my-2">
+      <div className="flex gap-4 my-2 flex-wrap">
         {categories.map((category) => (
           <Link
             key={category}
@@ -85,6 +85,7 @@ export default function HomePage() {
             {category}
           </Link>
         ))}
+
         {/* 🔥 Direct Link to Diet Log */}
         <Link href="/diet" className="text-red-500 hover:underline">
           Diet Log
@@ -92,12 +93,13 @@ export default function HomePage() {
       </div>
 
       {/* ✅ Navigation Options */}
-      <div className="mb-4 flex gap-4">
+      <div className="mb-4 flex gap-4 flex-wrap">
         {user ? (
           <>
             <Link href="/settings" className="text-blue-500 hover:underline">
               Settings
             </Link>
+
             <Link
               href={`/u/${encodeURIComponent(
                 (user.email || "").replace(/@/g, ".")
@@ -105,6 +107,14 @@ export default function HomePage() {
               className="text-blue-500 hover:underline"
             >
               My Profile
+            </Link>
+
+            {/* ⭐ NEW: Upload Tracks Link */}
+            <Link
+              href="/hikes"
+              className="text-purple-600 font-semibold hover:underline"
+            >
+              Hikes
             </Link>
           </>
         ) : (

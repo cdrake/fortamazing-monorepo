@@ -1,16 +1,16 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, User, sendSignInLinkToEmail, ActionCodeSettings, sendEmailVerification } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, User, sendSignInLinkToEmail, ActionCodeSettings, sendEmailVerification, FacebookAuthProvider, signInWithRedirect } from "firebase/auth";
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, getDoc, query, where, setDoc, updateDoc, orderBy } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+  apiKey: "AIzaSyDCXVK6yBvpjeoP4stncpuO0pYQkMwZ7oc",
+  authDomain: "fortamazing-7a27c.firebaseapp.com",
+  projectId: "fortamazing-7a27c",
+  storageBucket: "fortamazing-7a27c.firebasestorage.app",
+  messagingSenderId: "304795134519",
+  appId: "1:304795134519:web:264e3d1c1809bff2ff2db2",
+  measurementId: "G-FX8J27FEDK"
 };
 
 // ✅ Initialize Firebase Services
@@ -29,6 +29,20 @@ const signInWithGoogle = async () => {
     console.error("Google Sign-In Error:", error);
   }
 };
+
+export async function signInWithFacebook(): Promise<User | null> {
+  const provider = new FacebookAuthProvider();
+  provider.addScope("email");
+
+  try {
+    const result = await signInWithPopup(auth, provider);
+    return result.user;
+  } catch (err: any) {
+    // fallback to redirect when popup is blocked
+    await signInWithRedirect(auth, provider);
+    return null; // firebase will complete login after redirect
+  }
+}
 
 // ✅ Sign out function
 const logout = async () => {
