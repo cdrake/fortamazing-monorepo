@@ -14,59 +14,72 @@ export type DayTrack = {
   originalFile?: File | undefined;
 };
 
-// app/hikes/lib/trackUtils.ts
+function isPosition(val: unknown): val is Position {
+  return Array.isArray(val) && (val.length === 2 || val.length >= 3) && typeof val[0] === "number" && typeof val[1] === "number";
+}
 
-export function extractElevationsFromFeature(feature: Feature): number[] {
+function isNumber(val: unknown): val is number {
+  return typeof val === "number" && !Number.isNaN(val);
+}
+
+/**
+ * extractElevationsFromFeature - extract numeric elevation values from a GeoJSON feature's geometry
+ */
+export function extractElevationsFromFeature(feature: Feature<Geometry>): number[] {
   if (!feature || !feature.geometry) return [];
-  const g = feature.geometry as Geometry;
-
+  const g = feature.geometry;
   const elevations: number[] = [];
 
-  function pushFromCoords(coords: any) {
-    // coords might be [lon, lat, ele] or [lon, lat] or objects
-    if (!coords) return;
+  function pushFromCoords(coords: unknown): void {
+    if (coords == null) return;
+
     if (Array.isArray(coords)) {
-      // if nested arrays (MultiLineString / MultiPolygon), recurse
+      if (coords.length === 0) return;
       if (Array.isArray(coords[0])) {
-        for (const c of coords as any[]) pushFromCoords(c);
+        for (const c of coords) pushFromCoords(c);
         return;
       }
-      // coords is a single position
-      // many GPX exports use [lon, lat, ele] (ele index 2)
-      const ele = typeof coords[2] === "number" ? coords[2] : undefined;
-      if (typeof ele === "number" && !Number.isNaN(ele)) elevations.push(ele);
-    } else if (typeof coords === "object") {
-      // maybe { lat, lon, ele } or {lat, lng, altitude}
+      if (isPosition(coords)) {
+        const ele = coords[2];
+        if (isNumber(ele)) elevations.push(ele);
+      }
+      return;
+    }
+
+    if (typeof coords === "object" && coords !== null) {
+      const obj = coords as { [k: string]: unknown };
       const ele =
-        typeof (coords as any).ele === "number" ? (coords as any).ele
-        : typeof (coords as any).elevation === "number" ? (coords as any).elevation
-        : typeof (coords as any).alt === "number" ? (coords as any).alt
-        : typeof (coords as any).altitude === "number" ? (coords as any).altitude
-        : undefined;
-      if (typeof ele === "number" && !Number.isNaN(ele)) elevations.push(ele);
+        isNumber(obj.ele) ? obj.ele
+          : isNumber(obj.elevation) ? (obj.elevation as number)
+          : isNumber(obj.alt) ? (obj.alt as number)
+          : isNumber(obj.altitude) ? (obj.altitude as number)
+          : undefined;
+      if (isNumber(ele)) elevations.push(ele);
+      return;
     }
   }
 
   try {
-    if (g.type === "LineString") {
-      pushFromCoords((g as any).coordinates);
-    } else if (g.type === "MultiLineString") {
-      for (const line of (g as any).coordinates || []) pushFromCoords(line);
-    } else if (g.type === "Polygon") {
-      for (const ring of (g as any).coordinates || []) pushFromCoords(ring);
-    } else if (g.type === "MultiPolygon") {
-      for (const poly of (g as any).coordinates || []) for (const ring of poly) pushFromCoords(ring);
-    } else if (g.type === "Point") {
-      pushFromCoords((g as any).coordinates);
-    } else if (g.type === "MultiPoint") {
-      pushFromCoords((g as any).coordinates);
+    // coordinates property is typed as unknown here then narrowed by pushFromCoords
+    const coordsLike = (g as { coordinates?: unknown }).coordinates;
+    switch (g.type) {
+      case "LineString":
+      case "MultiLineString":
+      case "Polygon":
+      case "MultiPolygon":
+      case "Point":
+      case "MultiPoint":
+        pushFromCoords(coordsLike);
+        break;
+      default:
+        break;
     }
-  } catch (e) {
-    // safe guard — return what we have so far
+  } catch {
+    // swallow processing errors and return what we have so far
   }
+
   return elevations;
 }
-
 
 /**
  * computeStats - compute approximate total distance (meters), elevation min/max & bbox
@@ -74,31 +87,75 @@ export function extractElevationsFromFeature(feature: Feature): number[] {
 export function computeStats(fc: FeatureCollection<Geometry>) {
   let total = 0;
   const elev: number[] = [];
+
   try {
     for (const f of fc.features) {
       try {
-        total += turf.length(f as any, { units: "kilometers" }) * 1000;
-      } catch { /* ignore per-feature errors */ }
-      const g: any = f.geometry;
+        total += turf.length(f as Feature, { units: "kilometers" }) * 1000;
+      } catch {
+        // ignore per-feature errors
+      }
+
+      const g = f.geometry;
       if (!g) continue;
-      const coords: Position[] = [];
-      if (g.type === "LineString") coords.push(...(g.coordinates as Position[]));
-      else if (g.type === "MultiLineString") coords.push(...((g.coordinates as Position[][]).flat()));
-      for (const p of coords) if (p && p.length > 2 && typeof p[2] === "number") elev.push(p[2]);
+
+      // gather coordinates safely by checking the runtime shapes
+      const coordsArr: Position[] = [];
+      const raw = (g as { coordinates?: unknown }).coordinates;
+
+      if (g.type === "LineString" && Array.isArray(raw)) {
+        coordsArr.push(...(raw as Position[]));
+      } else if (g.type === "MultiLineString" && Array.isArray(raw)) {
+        // raw is Position[][]
+        for (const line of raw as unknown as unknown[]) {
+          if (Array.isArray(line)) coordsArr.push(...(line as Position[]));
+        }
+      } else if (g.type === "Polygon" && Array.isArray(raw)) {
+        // raw is Position[][]
+        for (const ring of raw as unknown as unknown[]) {
+          if (Array.isArray(ring)) coordsArr.push(...(ring as Position[]));
+        }
+      } else if (g.type === "MultiPolygon" && Array.isArray(raw)) {
+        // raw is Position[][][]
+        for (const poly of raw as unknown as unknown[]) {
+          if (!Array.isArray(poly)) continue;
+          for (const ring of poly as unknown as unknown[]) {
+            if (Array.isArray(ring)) coordsArr.push(...(ring as Position[]));
+          }
+        }
+      } else if (g.type === "Point") {
+        if (isPosition(raw)) coordsArr.push(raw as Position);
+      } else if (g.type === "MultiPoint" && Array.isArray(raw)) {
+        coordsArr.push(...(raw as Position[]));
+      }
+
+      for (const p of coordsArr) {
+        if (Array.isArray(p) && p.length > 2 && isNumber(p[2])) elev.push(p[2]);
+      }
     }
-  } catch (e) {
-    // ignore
+  } catch {
+    // ignore top-level errors
   }
+
   let bounds: [number, number, number, number] | null = null;
-  try { bounds = turf.bbox(fc) as [number, number, number, number]; } catch { bounds = null; }
-  return { distance_m: Math.round(total), elevation: elev.length ? { min: Math.min(...elev), max: Math.max(...elev) } : null, bounds };
+  try {
+    bounds = turf.bbox(fc) as [number, number, number, number];
+  } catch {
+    bounds = null;
+  }
+
+  return {
+    distance_m: Math.round(total),
+    elevation: elev.length ? { min: Math.min(...elev), max: Math.max(...elev) } : null,
+    bounds,
+  };
 }
 
 /**
  * mergeDays - combine many DayTrack objects into a single FeatureCollection
  */
 export function mergeDays(days: DayTrack[]) {
-  const features = days.flatMap(d => d.geojson.features);
+  const features = days.flatMap((d) => d.geojson.features);
   return { type: "FeatureCollection", features } as FeatureCollection<Geometry>;
 }
 
@@ -107,7 +164,7 @@ export function mergeDays(days: DayTrack[]) {
  */
 export function getCombinedExtentFromDayTracks(days: DayTrack[] | null) {
   if (!days || days.length === 0) return null;
-  const combined = { type: "FeatureCollection", features: days.flatMap(d => d.geojson.features) } as FeatureCollection<Geometry>;
+  const combined = { type: "FeatureCollection", features: days.flatMap((d) => d.geojson.features) } as FeatureCollection<Geometry>;
   try {
     const bbox = turf.bbox(combined); // [minLon, minLat, maxLon, maxLat]
     const [minLon, minLat, maxLon, maxLat] = bbox;
@@ -124,15 +181,20 @@ export function getCombinedExtentFromDayTracks(days: DayTrack[] | null) {
  * extractElevationsFromPoints - when given an array of points (latlng arrays or objects),
  * returns an array of numeric elevations when possible.
  */
-export function extractElevationsFromPoints(points: any[]): number[] {
+export function extractElevationsFromPoints(points: unknown[]): number[] {
   const elevations: number[] = [];
   for (const p of points) {
     if (Array.isArray(p)) {
-      const ele = p[2];
-      if (typeof ele === "number") elevations.push(ele);
+      const ele = (p as unknown as Position)[2];
+      if (isNumber(ele)) elevations.push(ele);
     } else if (p && typeof p === "object") {
-      const ele = p.ele ?? p.alt ?? p.altitude ?? p[2];
-      if (typeof ele === "number") elevations.push(ele);
+      const obj = p as { [k: string]: unknown };
+      const ele = isNumber(obj.ele) ? (obj.ele as number)
+        : isNumber(obj.alt) ? (obj.alt as number)
+        : isNumber(obj.altitude) ? (obj.altitude as number)
+        : isNumber(obj[2]) ? (obj[2] as number)
+        : undefined;
+      if (isNumber(ele)) elevations.push(ele);
     }
   }
   return elevations;
@@ -140,10 +202,12 @@ export function extractElevationsFromPoints(points: any[]): number[] {
 
 /**
  * waitForMap - small utility that polls a getter for a map instance for up to timeout
+ *
+ * Generic: pass the expected map/viewer type if you want a typed return.
  */
-export function waitForMap(mapRefGetter: ()=>any, timeoutMs = 5000, intervalMs = 150) {
+export function waitForMap<T>(mapRefGetter: () => T | null, timeoutMs = 5000, intervalMs = 150): Promise<T | null> {
   const start = Date.now();
-  return new Promise<any | null>((resolve) => {
+  return new Promise<T | null>((resolve) => {
     const iv = setInterval(() => {
       const m = mapRefGetter();
       if (m) {

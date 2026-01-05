@@ -1,42 +1,32 @@
-// src/app/hikes/lib/imageHelper.ts
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * imageHelper.ts
  * Utilities for image handling: reading, EXIF extraction, HEIC conversion, EXIF copying.
- *
- * Usage:
- *  import {
- *    readFileAsDataURL,
- *    readFileAsBinaryString,
- *    extractExifFromFile,
- *    extractExifFromUrl,
- *    extractExifFromUrlWithFallback,
- *    convertHeicFileToJpegFile,
- *    copyExifFromJpegToJpeg,
- *    makeObjectUrl,
- *    revokeObjectUrl,
- *    hasGpsExif,
- *    readAllExifTags,
- *    debugExif,
- *  } from "./imageHelper";
  */
-import { heicTo, isHeic } from "heic-to";
+
+import * as heicToModule from "heic-to";
+
+type HeicToModule = {
+  heicTo?: (opts: { blob: Blob; type?: string; quality?: number }) => Promise<Blob>;
+  isHeic?: (f: File | Blob) => Promise<boolean>;
+};
+
+const { heicTo, isHeic } = (heicToModule as unknown) as HeicToModule;
 
 export type LatLon = { lat: number; lon: number } | null;
 
 export type ConvertResult = {
-  file: File;               // File to upload (converted or original)
+  file: File; // File to upload (converted or original)
   previewUrl?: string | null;
-  converted: boolean;       // whether we converted to JPEG
-  reason?: string | null;   // if not converted, why
+  converted: boolean; // whether we converted to JPEG
+  reason?: string | null; // if not converted, why
 };
 
-export const isBlobLike = (v: any): v is Blob =>
+export const isBlobLike = (v: unknown): v is Blob =>
   typeof v === "object" &&
   v !== null &&
-  typeof (v as any).arrayBuffer === "function" &&
-  typeof (v as any).size === "number" &&
-  typeof (v as any).type === "string";
+  typeof (v as { arrayBuffer?: unknown }).arrayBuffer === "function" &&
+  typeof (v as { size?: unknown }).size === "number" &&
+  typeof (v as { type?: unknown }).type === "string";
 
 /* --------------------------- Basic readers --------------------------- */
 
@@ -62,26 +52,24 @@ export function readFileAsArrayBuffer(file: File | Blob): Promise<ArrayBuffer> {
 
 /** Read as binary string (used by piexifjs). Fallback converts ArrayBuffer -> binary string. */
 export async function readFileAsBinaryString(file: File | Blob): Promise<string> {
-  // FileReader.readAsBinaryString is deprecated in some environments; use ArrayBuffer fallback.
   try {
-    // @ts-ignore
+    // FileReader.readAsBinaryString is deprecated in some environments; prefer fallback
+    // But attempt it if present for performance.
     if (typeof FileReader !== "undefined" && (FileReader.prototype as any).readAsBinaryString) {
       return await new Promise((resolve, reject) => {
         const fr = new FileReader();
         fr.onerror = () => reject(fr.error);
         fr.onload = () => resolve(String(fr.result));
-        // @ts-ignore
         fr.readAsBinaryString(file);
       });
     }
-  } catch (e) {
-    // fall through to arrayBuffer path
+  } catch {
+    // fall through to ArrayBuffer path
   }
 
   const ab = await readFileAsArrayBuffer(file);
   const u8 = new Uint8Array(ab);
   let s = "";
-  // convert in chunks for performance
   const CH = 0x8000;
   for (let i = 0; i < u8.length; i += CH) {
     const slice = u8.subarray(i, i + CH);
@@ -92,22 +80,28 @@ export async function readFileAsBinaryString(file: File | Blob): Promise<string>
 
 /* --------------------------- EXIF helpers --------------------------- */
 
+function isNumber(val: unknown): val is number {
+  return typeof val === "number" && isFinite(val);
+}
+
 /**
  * Convert various EXIF GPS tag shapes to {lat, lon} or null.
  * Accepts an 'expanded' tags object (ExifReader load with expanded:true) or a subset.
  */
-export function gpsToDecimal(gps: any): LatLon {
+export function gpsToDecimal(gps: unknown): LatLon {
   try {
-    if (!gps) return null;
+    if (!gps || typeof gps !== "object") return null;
 
-    // helper to get a value from multiple possible keys (case-sensitive and case-insensitive)
-    const getFirst = (obj: any, keys: string[]) => {
-      if (!obj) return undefined;
+    const obj = gps as Record<string, unknown>;
+
+    const getFirst = (o: Record<string, unknown> | undefined, keys: string[]) => {
+      if (!o) return undefined;
       for (const k of keys) {
-        if (k in obj) return obj[k];
+        if (k in o) return o[k];
       }
       // case-insensitive fallback
-      const lower = Object.keys(obj).reduce((acc: any, key) => { acc[key.toLowerCase()] = obj[key]; return acc; }, {});
+      const lower: Record<string, unknown> = {};
+      for (const key of Object.keys(o)) lower[key.toLowerCase()] = o[key];
       for (const k of keys) {
         const v = lower[k.toLowerCase()];
         if (typeof v !== "undefined") return v;
@@ -115,39 +109,31 @@ export function gpsToDecimal(gps: any): LatLon {
       return undefined;
     };
 
-    // parse possible rational objects, numbers, arrays, or strings
-    const parseComponent = (v: any): number | null => {
+    const parseComponent = (v: unknown): number | null => {
       if (v == null) return null;
 
-      // If it's already a number
-      if (typeof v === "number" && isFinite(v)) return Number(v);
+      if (isNumber(v)) return v as number;
 
-      // Some libraries give { value: 12.34 } or {numerator, denominator}
-      if (typeof v === "object") {
-        if ("value" in v && typeof v.value === "number") return Number(v.value);
-        if ("numerator" in v && "denominator" in v && Number(v.denominator) !== 0) {
-          return Number(v.numerator) / Number(v.denominator);
+      if (typeof v === "object" && v !== null) {
+        const vObj = v as Record<string, unknown>;
+        if (isNumber(vObj.value)) return Number(vObj.value);
+        if ("numerator" in vObj && "denominator" in vObj) {
+          const n = Number(vObj.numerator);
+          const d = Number(vObj.denominator);
+          if (isFinite(n) && isFinite(d) && d !== 0) return n / d;
         }
-        // exifreader sometimes gives { description: "41,6,56.1" } or { value: [..] }
-        if (Array.isArray(v.value)) {
-          // fall through to array handler below
-          v = v.value;
-        } else if (typeof v.description === "string" && v.description.includes(",")) {
-          return parseDMSString(v.description);
-        } else if (Array.isArray(v)) {
-          return parseDMSArray(v);
+        if (Array.isArray(vObj.value)) {
+          return parseDMSArray(vObj.value as unknown[]);
+        }
+        if (typeof vObj.description === "string" && vObj.description.includes(",")) {
+          return parseDMSString(vObj.description);
         }
       }
 
-      // If it's an array like [deg, min, sec]
       if (Array.isArray(v)) return parseDMSArray(v);
-
-      // if it's a string like "41,6,56.1" or "41/1,6/1,561/10"
       if (typeof v === "string") {
-        // trim, replace unicode commas, then try DMS
         const s = v.trim().replace(/\uFF0C/g, ",");
         if (s.includes(",") || s.includes("/")) return parseDMSString(s);
-        // try parsing as decimal
         const n = Number(s);
         return isFinite(n) ? n : null;
       }
@@ -155,23 +141,24 @@ export function gpsToDecimal(gps: any): LatLon {
       return null;
     };
 
-    const parseDMSArray = (arr: any[]): number | null => {
+    const parseDMSArray = (arr: unknown[]): number | null => {
       try {
         if (!Array.isArray(arr) || arr.length === 0) return null;
         const nums = arr.map((x) => {
-          if (typeof x === "number") return x;
+          if (isNumber(x)) return x as number;
           if (typeof x === "string") {
             const n = Number(x);
             if (isFinite(n)) return n;
-            // "12/1" style
             if (x.includes("/")) {
-              const [num, den] = x.split("/").map(Number);
+              const [numStr, denStr] = x.split("/");
+              const num = Number(numStr);
+              const den = Number(denStr);
               if (isFinite(num) && isFinite(den) && den !== 0) return num / den;
             }
           }
-          // object like {numerator, denominator}
-          if (typeof x === "object" && x !== null && "numerator" in x && "denominator" in x) {
-            const num = Number(x.numerator), den = Number(x.denominator);
+          if (typeof x === "object" && x !== null && "numerator" in (x as Record<string, unknown>) && "denominator" in (x as Record<string, unknown>)) {
+            const num = Number((x as Record<string, unknown>).numerator);
+            const den = Number((x as Record<string, unknown>).denominator);
             if (isFinite(num) && isFinite(den) && den !== 0) return num / den;
           }
           return NaN;
@@ -188,7 +175,6 @@ export function gpsToDecimal(gps: any): LatLon {
 
     const parseDMSString = (s: string): number | null => {
       try {
-        // some patterns: "41,6,56.1" or "41/1,6/1,561/10"
         const parts = s.split(",").map((p) => p.trim());
         if (parts.length === 1) {
           const n = Number(s);
@@ -196,7 +182,9 @@ export function gpsToDecimal(gps: any): LatLon {
         }
         const vals = parts.map((p) => {
           if (p.includes("/")) {
-            const [num, den] = p.split("/").map(Number);
+            const [numStr, denStr] = p.split("/");
+            const num = Number(numStr);
+            const den = Number(denStr);
             if (isFinite(num) && isFinite(den) && den !== 0) return num / den;
             return NaN;
           }
@@ -209,37 +197,28 @@ export function gpsToDecimal(gps: any): LatLon {
       }
     };
 
-    // find latitude / longitude and refs from many possible keys
-    const latVals = getFirst(gps, ["GPSLatitude", "GPSLatitudeValue", "Latitude", "latitude", "lat", "gpsLatitude"]);
-    const latRef = getFirst(gps, ["GPSLatitudeRef", "GPSLatitudeRefValue", "LatitudeRef", "latitudeRef", "latRef"]);
-    const lonVals = getFirst(gps, ["GPSLongitude", "GPSLongitudeValue", "Longitude", "longitude", "lon", "lng", "gpsLongitude"]);
-    const lonRef = getFirst(gps, ["GPSLongitudeRef", "GPSLongitudeRefValue", "LongitudeRef", "longitudeRef", "lonRef"]);
+    const latVals = getFirst(obj, ["GPSLatitude", "GPSLatitudeValue", "Latitude", "latitude", "lat", "gpsLatitude"]);
+    const latRef = getFirst(obj, ["GPSLatitudeRef", "GPSLatitudeRefValue", "LatitudeRef", "latitudeRef", "latRef"]);
+    const lonVals = getFirst(obj, ["GPSLongitude", "GPSLongitudeValue", "Longitude", "longitude", "lon", "lng", "gpsLongitude"]);
+    const lonRef = getFirst(obj, ["GPSLongitudeRef", "GPSLongitudeRefValue", "LongitudeRef", "longitudeRef", "lonRef"]);
 
-    // If there are also direct decimal fields 'latitude'/'longitude' as numbers, try those too (already covered by getFirst)
-    if (typeof latVals === "undefined" && typeof gps.latitude === "number" && typeof gps.longitude === "number") {
-      return { lat: Number(gps.latitude), lon: Number(gps.longitude) };
+    if (typeof (obj as Record<string, unknown>).latitude === "number" && typeof (obj as Record<string, unknown>).longitude === "number") {
+      return { lat: Number((obj as Record<string, unknown>).latitude), lon: Number((obj as Record<string, unknown>).longitude) };
     }
 
-    // parse components
     const latNum = parseComponent(latVals);
     const lonNum = parseComponent(lonVals);
 
     if (latNum == null || lonNum == null || !isFinite(latNum) || !isFinite(lonNum)) {
-      // last attempt: some libs return keys 'Latitude' / 'Longitude' capitalized (common)
-      const Lat = (gps as any).Latitude ?? (gps as any).Lat ?? (gps as any).GPSLatitude;
-      const Lon = (gps as any).Longitude ?? (gps as any).Lon ?? (gps as any).GPSLongitude;
+      // fallback checks for different keys
+      const Lat = (obj as Record<string, unknown>).Latitude ?? (obj as Record<string, unknown>).Lat ?? (obj as Record<string, unknown>).GPSLatitude;
+      const Lon = (obj as Record<string, unknown>).Longitude ?? (obj as Record<string, unknown>).Lon ?? (obj as Record<string, unknown>).GPSLongitude;
       if (typeof Lat === "number" && typeof Lon === "number") {
-        const result = { lat: Number(Lat), lon: Number(Lon) };
-        console.log("Parsed GPS (capital keys fallback):", result);
-        return result;
+        return { lat: Number(Lat), lon: Number(Lon) };
       }
-
-      // nothing parsed
-      console.debug("gpsToDecimal: failed to parse components", { gps, latVals, lonVals, latRef, lonRef });
       return null;
     }
 
-    // determine sign using ref if present, otherwise rely on numeric sign
     let latSign = 1;
     let lonSign = 1;
     const lRef = String(latRef ?? "").toUpperCase();
@@ -247,25 +226,22 @@ export function gpsToDecimal(gps: any): LatLon {
     if (lRef === "S" || lRef === "SOUTH" || lRef === "SO") latSign = -1;
     if (lnRef === "W" || lnRef === "WEST") lonSign = -1;
 
-    // If no refs provided, respect negative numbers
     const finalLat = (latSign === -1 ? -Math.abs(latNum) : latNum);
     const finalLon = (lonSign === -1 ? -Math.abs(lonNum) : lonNum);
 
-    const out = { lat: finalLat, lon: finalLon };
-    console.log("Parsed GPS:", out, { rawGps: gps, latVals, lonVals, latRef, lonRef });
-    return out;
-  } catch (e) {
-    console.warn("gpsToDecimal threw", e, { gps });
+    return { lat: finalLat, lon: finalLon };
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("gpsToDecimal threw", err, { gps });
     return null;
   }
 }
-
 
 /**
  * Read full EXIF tags from a File or ArrayBuffer using exifreader (expanded).
  * Returns the tags object or null on failure.
  */
-export async function readAllExifTags(fileOrArrayBuffer: File | Blob | ArrayBuffer): Promise<any | null> {
+export async function readAllExifTags(fileOrArrayBuffer: File | Blob | ArrayBuffer): Promise<Record<string, unknown> | null> {
   if (typeof window === "undefined") return null;
   try {
     const mod = await import("exifreader");
@@ -276,12 +252,11 @@ export async function readAllExifTags(fileOrArrayBuffer: File | Blob | ArrayBuff
     } else {
       ab = await readFileAsArrayBuffer(fileOrArrayBuffer as File);
     }
-    const tags = ExifReader.load(ab, { expanded: true });
-    console.log('exif tags:', tags);
-
-    return tags ?? null;
-  } catch (e) {
-    console.warn("readAllExifTags failed:", e);
+    const tags = (ExifReader.load(ab, { expanded: true }) as Record<string, unknown>) ?? null;
+    return tags;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("readAllExifTags failed:", err);
     return null;
   }
 }
@@ -294,97 +269,80 @@ export async function extractExifFromFile(file: File): Promise<LatLon> {
   if (typeof window === "undefined") return null;
   try {
     const tags = await readAllExifTags(file);
-    const gps = tags?.gps || tags;
-    return gpsToDecimal(gps || {});
-  } catch (e) {
-    console.warn("extractExifFromFile failed:", e);
+    const gps = (tags && ((tags as Record<string, unknown>).gps as unknown)) ?? tags;
+    return gpsToDecimal(gps ?? {});
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("extractExifFromFile failed:", err);
     return null;
   }
 }
 
 /* ----------------------- URL-based EXIF extraction (client) ----------------------- */
 
-/**
- * Extract EXIF (GPS) from a remote image URL.
- * Note: often fails due to CORS; returns null on failure.
- */
 export async function extractExifFromUrl(url: string, opts?: { mode?: RequestMode }): Promise<LatLon> {
   if (typeof window === "undefined") return null;
   try {
     const mode = opts?.mode ?? "cors";
     const resp = await fetch(url, { mode });
     if (!resp.ok) {
+      // eslint-disable-next-line no-console
       console.warn("extractExifFromUrl fetch failed:", resp.status, resp.statusText);
       return null;
     }
     const ab = await resp.arrayBuffer();
     const tags = await readAllExifTags(ab);
-    console.log('exif tags from url:', url, tags);
-    const gps = tags?.gps || tags;
-    console.log('gps from url:', gps);
-    const decimalGPS = gpsToDecimal(gps || {});
-    console.log('decimalGPS from url:', decimalGPS);
-
-    return decimalGPS;
-  } catch (e) {
-    console.warn("extractExifFromUrl failed (maybe CORS):", e);
+    const gps = (tags && ((tags as Record<string, unknown>).gps as unknown)) ?? tags;
+    return gpsToDecimal(gps ?? {});
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("extractExifFromUrl failed (maybe CORS):", err);
     return null;
   }
 }
 
-/**
- * extractExifFromUrlWithFallback
- * - Tries client-side fetch+parse first (CORS required).
- * - If that fails and serverProxyUrl is provided, calls the proxy endpoint which should return JSON { lat, lon }.
- * - serverProxyUrl usage: either GET ?url=<encoded-url> or POST with body { url } depending on server implementation.
- *
- * Returns { lat, lon } or null.
- */
 export async function extractExifFromUrlWithFallback(
   url: string,
   opts?: {
     mode?: RequestMode;
-    serverProxyUrl?: string;       // e.g. "/getImageExif" or full URL to your cloud function
+    serverProxyUrl?: string;
     serverProxyMethod?: "GET" | "POST";
     serverProxyHeaders?: Record<string, string>;
-    serverProxyBodyField?: string; // field name for the URL in POST (default "url")
+    serverProxyBodyField?: string;
   }
 ): Promise<LatLon> {
-  // 1) try client-side (fast, zero-cost)
   const clientResult = await extractExifFromUrl(url, { mode: opts?.mode ?? "cors" });
   if (clientResult) return clientResult;
 
-  // 2) fallback to server proxy if provided
   const proxy = opts?.serverProxyUrl;
   if (!proxy) return null;
 
   try {
     const method = opts?.serverProxyMethod ?? "GET";
     if (method === "GET") {
-      // append encoded url param as ?url=
       const sep = proxy.includes("?") ? "&" : "?";
       const fetchUrl = `${proxy}${sep}url=${encodeURIComponent(url)}`;
       const r = await fetch(fetchUrl, { method: "GET", headers: opts?.serverProxyHeaders });
       if (!r.ok) throw new Error(`proxy GET failed: ${r.status}`);
-      const json = await r.json();
-      if (json && (json.lat != null && json.lon != null)) return { lat: Number(json.lat), lon: Number(json.lon) };
+      const json = (await r.json()) as Record<string, unknown>;
+      if (json && json.lat != null && json.lon != null) return { lat: Number(json.lat), lon: Number(json.lon) };
       return null;
     } else {
-      // POST usage: send JSON body { url: ... } by default, but allow custom field name
       const bodyField = opts?.serverProxyBodyField ?? "url";
       const body = { [bodyField]: url };
-      const r = await fetch(proxy, {
+      const r = await fetch(opts!.serverProxyUrl!, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(opts?.serverProxyHeaders ?? {}) },
         body: JSON.stringify(body),
       });
       if (!r.ok) throw new Error(`proxy POST failed: ${r.status}`);
-      const json = await r.json();
-      if (json && (json.lat != null && json.lon != null)) return { lat: Number(json.lat), lon: Number(json.lon) };
+      const json = (await r.json()) as Record<string, unknown>;
+      if (json && json.lat != null && json.lon != null) return { lat: Number(json.lat), lon: Number(json.lon) };
       return null;
     }
-  } catch (e) {
-    console.warn("extractExifFromUrlWithFallback proxy failed:", e);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("extractExifFromUrlWithFallback proxy failed:", err);
     return null;
   }
 }
@@ -401,7 +359,7 @@ export async function convertHeicFile(
   file: File,
   opts?: {
     type?: "image/jpeg" | "image/png";
-    quality?: number; // JPEG only (0–1)
+    quality?: number;
   }
 ): Promise<ConvertResult> {
   const type = opts?.type ?? "image/jpeg";
@@ -412,9 +370,8 @@ export async function convertHeicFile(
   }
 
   try {
-    const heic = await isHeic(file);
-    if (!heic) {
-      // Not HEIC — return original unchanged
+    const heicDetected = typeof isHeic === "function" ? await isHeic(file) : false;
+    if (!heicDetected) {
       return {
         file,
         previewUrl: URL.createObjectURL(file),
@@ -423,12 +380,16 @@ export async function convertHeicFile(
       };
     }
 
-    const blob = await heicTo({
-      blob: file,
-      type,
-      quality,
-    });
+    if (typeof heicTo !== "function") {
+      return {
+        file,
+        previewUrl: URL.createObjectURL(file),
+        converted: false,
+        reason: "heic-to not available",
+      };
+    }
 
+    const blob = await heicTo({ blob: file, type, quality });
     const ext = type === "image/png" ? "png" : "jpg";
     const base = file.name.replace(/\.[^.]+$/, "");
     const outFile = new File([blob], `${base}.${ext}`, { type });
@@ -438,36 +399,24 @@ export async function convertHeicFile(
       previewUrl: URL.createObjectURL(outFile),
       converted: true,
     };
-  } catch (e: any) {
-    console.warn("HEIC conversion failed, returning original:", e);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("HEIC conversion failed, returning original:", err);
     return {
       file,
       previewUrl: URL.createObjectURL(file),
       converted: false,
-      reason: String(e?.message ?? e),
+      reason: String((err as Error)?.message ?? err),
     };
   }
 }
 
-/**
- * convertHeicFileToJpegFile
- * Attempts to convert HEIC/HEIF -> JPEG using multiple fallbacks:
- *  1) ImageDecoder (if available)
- *  2) createImageBitmap
- *  3) heic2any (dynamic import, requires package + WASM)
- * Returns ConvertResult (never throws; returns original file on failure with reason).
- */
 export async function convertHeicFileToJpegFile(file: File): Promise<ConvertResult> {
-  return await (convertHeicFile as any)(file, { type: "image/jpeg", quality: 0.92 });
+  return convertHeicFile(file, { type: "image/jpeg", quality: 0.92 });
 }
 
 /* --------------------------- EXIF copy & stripping --------------------------- */
 
-/**
- * copyExifFromJpegToJpeg(originalJpegFile, newJpegBlob)
- * - Uses piexifjs to copy EXIF blocks from original -> new.
- * - Returns Blob (JPEG) with EXIF inserted. If piexif fails, returns newJpegBlob unchanged.
- */
 export async function copyExifFromJpegToJpeg(originalJpegFile: File, newJpegBlob: Blob): Promise<Blob> {
   if (typeof window === "undefined") return newJpegBlob;
   try {
@@ -475,11 +424,10 @@ export async function copyExifFromJpegToJpeg(originalJpegFile: File, newJpegBlob
     const piexif = (piexifMod as any).default ?? piexifMod;
 
     const origBin = await readFileAsBinaryString(originalJpegFile);
-    let exifObj: any;
+    let exifObj: Record<string, unknown> | null = null;
     try {
-      exifObj = piexif.load(origBin);
-    } catch (e) {
-      console.warn("piexif.load failed (no EXIF?):", e);
+      exifObj = piexif.load(origBin) as Record<string, unknown>;
+    } catch {
       exifObj = null;
     }
     if (!exifObj || Object.keys(exifObj).length === 0) {
@@ -490,26 +438,23 @@ export async function copyExifFromJpegToJpeg(originalJpegFile: File, newJpegBlob
     try {
       const exifBytes = piexif.dump(exifObj);
       const patched = piexif.insert(exifBytes, newBin);
-      // convert patched binary string back to Blob
       const len = patched.length;
       const u8 = new Uint8Array(len);
       for (let i = 0; i < len; i++) u8[i] = patched.charCodeAt(i) & 0xff;
       const outBlob = new Blob([u8], { type: "image/jpeg" });
       return outBlob;
-    } catch (e) {
-      console.warn("Failed to insert EXIF:", e);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("Failed to insert EXIF:", err);
       return newJpegBlob;
     }
-  } catch (e) {
-    console.warn("piexifjs not available or failed:", e);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("piexifjs not available or failed:", err);
     return newJpegBlob;
   }
 }
 
-/**
- * stripExifFromJpeg - remove EXIF from a JPEG Blob
- * Uses piexifjs to remove EXIF; returns Blob (JPEG) without EXIF.
- */
 export async function stripExifFromJpeg(jpegFileOrBlob: File | Blob): Promise<Blob> {
   if (typeof window === "undefined") return jpegFileOrBlob;
   try {
@@ -522,12 +467,14 @@ export async function stripExifFromJpeg(jpegFileOrBlob: File | Blob): Promise<Bl
       const u8 = new Uint8Array(len);
       for (let i = 0; i < len; i++) u8[i] = patched.charCodeAt(i) & 0xff;
       return new Blob([u8], { type: "image/jpeg" });
-    } catch (e) {
-      console.warn("piexif.remove failed:", e);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("piexif.remove failed:", err);
       return jpegFileOrBlob;
     }
-  } catch (e) {
-    console.warn("piexifjs not available:", e);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("piexifjs not available:", err);
     return jpegFileOrBlob;
   }
 }
@@ -543,55 +490,59 @@ export function makeObjectUrl(b: Blob): string {
 export function revokeObjectUrl(url?: string | null) {
   try {
     if (url) URL.revokeObjectURL(url);
-  } catch (e) { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 /* --------------------------- Debug helpers --------------------------- */
 
-/** returns true if any GPS-like tag exists on a File (client-side) */
 export async function hasGpsExif(file: File): Promise<boolean> {
   try {
     const tags = await readAllExifTags(file);
     if (!tags) return false;
-    const gps = tags?.gps || tags;
-    return Boolean(gps.GPSLatitude || gps.GPSLatitudeRef || gps.GPSLongitude || gps.GPSLongitudeRef || gps.latitude || gps.longitude);
-  } catch (e) {
-    console.warn("hasGpsExif failed:", e);
+    const gps = (tags as Record<string, unknown>).gps ?? tags;
+    return Boolean(
+      (gps as Record<string, unknown>).GPSLatitude ||
+        (gps as Record<string, unknown>).GPSLatitudeRef ||
+        (gps as Record<string, unknown>).GPSLongitude ||
+        (gps as Record<string, unknown>).GPSLongitudeRef ||
+        (gps as Record<string, unknown>).latitude ||
+        (gps as Record<string, unknown>).longitude
+    );
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("hasGpsExif failed:", err);
     return false;
   }
 }
 
-/** Convenience: returns full tags (logged) and parsed lat/lon for debugging */
 export async function debugExif(file: File): Promise<LatLon> {
   const tags = await readAllExifTags(file);
+  // eslint-disable-next-line no-console
   console.log("EXIF tags for", file.name, tags);
-  const gps = tags?.gps || tags;
-  const ll = gpsToDecimal(gps || {});
+  const gps = (tags as Record<string, unknown>)?.gps ?? tags;
+  const ll = gpsToDecimal(gps ?? {});
+  // eslint-disable-next-line no-console
   console.log("Parsed lat/lon:", ll);
   return ll;
 }
 
-/** Convert decimal degrees to DMS rational format used by piexifjs
- * returns array of three rationals: [[degNum,degDen],[minNum,minDen],[secNum,secDen]]
- */
+/* --------------------------- GPS insertion helpers --------------------------- */
+
 function decimalToDMSRational(dec: number) {
   const abs = Math.abs(dec);
   const deg = Math.floor(abs);
   const minf = (abs - deg) * 60;
   const min = Math.floor(minf);
   const sec = (minf - min) * 60;
-  // convert each to rational: we'll use denominator 1000000 for seconds to keep precision
   const degRat: [number, number] = [deg, 1];
   const minRat: [number, number] = [min, 1];
   const secDen = 1000000;
   const secRat: [number, number] = [Math.round(sec * secDen), secDen];
-  return [degRat, minRat, secRat];
+  return [degRat, minRat, secRat] as [number, number][];
 }
 
-/**
- * Build a minimal GPS IFD object compatible with piexifjs
- * gps: { lat: number, lon: number, alt?: number }
- */
 function buildGpsIfd(gps: { lat: number; lon: number; alt?: number } | null) {
   if (!gps) return {};
   const latRef = gps.lat < 0 ? "S" : "N";
@@ -599,65 +550,48 @@ function buildGpsIfd(gps: { lat: number; lon: number; alt?: number } | null) {
   const lat = decimalToDMSRational(gps.lat);
   const lon = decimalToDMSRational(gps.lon);
 
-  const gpsIfd: any = {
-    // GPSLatitudeRef (1) and GPSLongitudeRef (3) are ASCII strings
+  const gpsIfd: Record<number, unknown> = {
     1: latRef,
-    2: lat, // GPSLatitude as rationals
+    2: lat,
     3: lonRef,
-    4: lon, // GPSLongitude as rationals
+    4: lon,
   };
 
   if (typeof gps.alt === "number" && !Number.isNaN(gps.alt)) {
-    // GPSAltitudeRef = 0 (above sea level), GPSAltitude = rational
     const altAbs = Math.abs(gps.alt);
-    gpsIfd[5] = 0; // GPSAltitudeRef
-    gpsIfd[6] = [Math.round(altAbs * 100), 100]; // altitude rational with 2 decimal precision
+    gpsIfd[5] = 0;
+    gpsIfd[6] = [Math.round(altAbs * 100), 100];
   }
 
-  // optionally, could add timestamp (GPSDateStamp / GPSTimeStamp) if you have it
   return gpsIfd;
 }
 
-/**
- * insertGpsExifIntoJpeg
- * - newJpegBlob: Blob (JPEG) to receive GPS EXIF
- * - gps: { lat, lon, alt? } (decimal degrees)
- * Returns a Blob (JPEG) with GPS EXIF inserted, or original blob on failure.
- *
- * Uses piexifjs in the browser (dynamic import). If piexifjs isn't available or fails, the function
- * returns the original blob (so upload can proceed).
- */
 export async function insertGpsExifIntoJpeg(newJpegBlob: Blob, gps: { lat: number; lon: number; alt?: number } | null): Promise<Blob> {
   if (typeof window === "undefined") return newJpegBlob;
   if (!gps) return newJpegBlob;
 
   try {
-    // dynamic import piexifjs
     const piexifMod = await import("piexifjs").catch(() => null);
     const piexif = (piexifMod as any)?.default ?? piexifMod;
     if (!piexif) {
+      // eslint-disable-next-line no-console
       console.warn("insertGpsExifIntoJpeg: piexifjs not available");
       return newJpegBlob;
     }
 
-    // read original JPEG binary string
     const newBin = await readFileAsBinaryString(newJpegBlob);
-
-    // build EXIF structure: only GPS IFD (others empty)
     const gpsIfd = buildGpsIfd(gps);
-    const exifObj: any = { "0th": {}, "Exif": {}, "GPS": gpsIfd, "Interop": {}, "1st": {}, "thumbnail": null };
+    const exifObj: Record<string, unknown> = { "0th": {}, Exif: {}, GPS: gpsIfd, Interop: {}, "1st": {}, thumbnail: null as unknown };
 
-    // dump and insert
     const exifBytes = piexif.dump(exifObj);
     const patched = piexif.insert(exifBytes, newBin);
-
-    // convert patched binary string back to Blob
     const len = patched.length;
     const u8 = new Uint8Array(len);
     for (let i = 0; i < len; i++) u8[i] = patched.charCodeAt(i) & 0xff;
     return new Blob([u8], { type: "image/jpeg" });
-  } catch (e) {
-    console.warn("insertGpsExifIntoJpeg failed:", e);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("insertGpsExifIntoJpeg failed:", err);
     return newJpegBlob;
   }
 }

@@ -1,4 +1,3 @@
-// ClientFileInput.tsx (patched)
 "use client";
 
 import React, { useEffect, useRef } from "react";
@@ -10,7 +9,12 @@ type Props = {
   buttonLabel?: string;
 };
 
-export default function ClientFileInput({ onFiles, accept = ".gpx,.kml", className, buttonLabel = "Choose files" }: Props) {
+export default function ClientFileInput({
+  onFiles,
+  accept = ".gpx,.kml",
+  className,
+  buttonLabel = "Choose files",
+}: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const observerRef = useRef<MutationObserver | null>(null);
 
@@ -18,14 +22,13 @@ export default function ClientFileInput({ onFiles, accept = ".gpx,.kml", classNa
     const inp = inputRef.current;
     if (!inp) return;
 
-    // 1) Defensive: force property + attribute
+    // Defensive: ensure both property and attribute are present
     function ensureMultiple() {
       try {
-        if(!inp) return;
+        if (!inp) return;
         inp.multiple = true;
-        // Some browsers/HTML serializers expect the attribute's presence (value may be ""), set both
         inp.setAttribute("multiple", "");
-      } catch (err) {
+      } catch {
         // ignore
       }
     }
@@ -33,32 +36,28 @@ export default function ClientFileInput({ onFiles, accept = ".gpx,.kml", classNa
     ensureMultiple();
     inp.accept = accept;
 
-    // 2) Log outerHTML once on mount so you can inspect what the input actually looks like in the DOM
+    // Dev: log outerHTML once so we can inspect the DOM
     if (process.env.NODE_ENV !== "production") {
-      // small delay to give React a chance to finish any synchronous patches
       setTimeout(() => {
         try {
-          // eslint-disable-next-line no-console
           console.log("[ClientFileInput] mounted input.outerHTML:", inp.outerHTML);
-        } catch {}
+        } catch {
+          // ignore
+        }
       }, 50);
     }
 
-    // 3) MutationObserver: if anything removes the attribute later, reapply and log (dev only).
+    // MutationObserver to restore attribute if removed (dev-time debugging)
     if (typeof MutationObserver !== "undefined") {
-      const obs = new MutationObserver(mutations => {
+      const obs = new MutationObserver((mutations) => {
         for (const m of mutations) {
-          // if attributes changed and multiple attribute is gone, restore it
           if (m.type === "attributes" && (m.attributeName === "multiple" || m.attributeName === null)) {
-            // attribute removed?
             if (!inp.hasAttribute("multiple") || !inp.multiple) {
               try {
                 inp.multiple = true;
                 inp.setAttribute("multiple", "");
                 if (process.env.NODE_ENV !== "production") {
-                  // eslint-disable-next-line no-console
                   console.warn("[ClientFileInput] Re-applied missing multiple attribute due to mutation:", m);
-                  // Optionally capture a stack trace for better debugging:
                   try {
                     throw new Error("attr-removed-stack");
                   } catch (e) {
@@ -66,7 +65,9 @@ export default function ClientFileInput({ onFiles, accept = ".gpx,.kml", classNa
                     console.log((e as Error).stack);
                   }
                 }
-              } catch {}
+              } catch {
+                // ignore
+              }
             }
           }
         }
@@ -76,7 +77,6 @@ export default function ClientFileInput({ onFiles, accept = ".gpx,.kml", classNa
     }
 
     return () => {
-      // cleanup
       if (observerRef.current) {
         observerRef.current.disconnect();
         observerRef.current = null;
@@ -86,48 +86,68 @@ export default function ClientFileInput({ onFiles, accept = ".gpx,.kml", classNa
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    console.log('on change called')
-    console.log(files);
+    // eslint-disable-next-line no-console
+    console.log("on change called", files);
     if (!files) return;
     onFiles(files);
-    // optionally clear value so same file(s) can be re-picked later
+    // optionally clear value so same files can be re-picked later:
     // e.target.value = "";
   };
 
   const open = async () => {
-    // Prefer native multi-picker on Chromium if available
+    // Try native File System Access API first (if available)
     try {
-      if ((window as any).showOpenFilePicker) {
-        const handles = await (window as any).showOpenFilePicker({
+      const win = window as unknown as { showOpenFilePicker?: unknown };
+      const picker = win.showOpenFilePicker;
+      if (typeof picker === "function") {
+        // The return type is implementation-defined in different browsers/TS versions,
+        // so treat as unknown[] and assert minimal shape when calling getFile().
+        const handles = (await (picker as (...args: unknown[]) => Promise<unknown[]>).call(win, {
           multiple: true,
-          types: [{
-            description: "GPX / KML",
-            accept: {
-              "application/gpx+xml": [".gpx"],
-              "application/vnd.google-earth.kml+xml": [".kml"],
-              "application/octet-stream": [".gpx", ".kml"]
+          types: [
+            {
+              description: "GPX / KML",
+              accept: {
+                "application/gpx+xml": [".gpx"],
+                "application/vnd.google-earth.kml+xml": [".kml"],
+                "application/octet-stream": [".gpx", ".kml"],
+              },
+            },
+          ],
+        })) as unknown[];
+
+        // Convert handles to File[] by calling getFile() on each handle if available
+        const files: File[] = await Promise.all(
+          handles.map(async (h) => {
+            // minimal shape assertion: object with getFile function returning Promise<File>
+            if (h && typeof h === "object" && typeof (h as { getFile?: unknown }).getFile === "function") {
+              return await (h as { getFile: () => Promise<File> }).getFile();
             }
-          }]
-        });
-        const files = await Promise.all(handles.map((h: any) => h.getFile()));
+            // Fallback: throw to cause outer catch -> fallback to input click
+            throw new Error("Handle does not support getFile()");
+          })
+        );
+
         onFiles(files);
         return;
       }
-    } catch (err) {
-      // fall through to input click
+    } catch {
+      // fall through to input click fallback
     }
+
     inputRef.current?.click();
   };
 
   return (
     <div className={className}>
-      <button type="button" onClick={open}>{buttonLabel}</button>
+      <button type="button" onClick={open}>
+        {buttonLabel}
+      </button>
       <input
         ref={inputRef}
         type="file"
         accept={accept}
         onChange={onChange}
-        // keep JSX boolean too — defensive
         multiple={true}
         style={{ display: "none" }}
       />
