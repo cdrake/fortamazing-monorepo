@@ -41,13 +41,14 @@
     "infoPlist": {
       "ITSAppUsesNonExemptEncryption": false,
       "CFBundleURLTypes": [
-          {
-            "CFBundleURLSchemes": [
-              "fortamazingexpoapp",
-              "com.googleusercontent.apps.304795134519-21iceou9hdovknpsjfn3pqvmnc80jf8t"
-            ]
-          }
-        ]
+        {
+          "CFBundleURLSchemes": [
+            "fortamazingexpoapp",
+            "com.googleusercontent.apps.304795134519-21iceou9hdovknpsjfn3pqvmnc80jf8t"
+          ]
+        }
+      ],
+      "NSLocationWhenInUseUsageDescription": "We use your location to center the map on you so you can find nearby hikes."
     }
   },
   "web": {
@@ -86,6 +87,30 @@
     },
     "eas": {
       "projectId": "90e2bde0-19f5-4034-b89d-f17e61827069"
+    }
+  },
+  "expo": {
+    "android": {
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
+      "package": "com.cdrake.fortamazingexpoapp"
+    },
+    "ios": {
+      "privacyManifests": {
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
+          }
+        ]
+      },
+      "bundleIdentifier": "com.cdrake.fortamazingexpoapp"
     }
   }
 }

@@ -16,6 +16,7 @@ import { listImagesForHike } from "@/lib/images";
 import ImageUploadButton from "@/components/ImageUploadButton";
 import { useAppTheme } from "@/theme/context";
 import { auth as firebaseAuth } from "@/config/firebase";
+import OSMMapView from "@/components/OSMMapView";
 
 type RouteParams = {
   HikeDetail: { hikeId: string };
@@ -33,6 +34,14 @@ export default function HikeDetail(): JSX.Element {
   const [images, setImages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const navigation = useNavigation<NavigationType>();
+  const center = hike?.center
+    ? {
+        latitude: hike.center.lat,
+        longitude: hike.center.lng,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+      }
+    : undefined;
 
   async function load() {
   setLoading(true);
@@ -102,7 +111,13 @@ export default function HikeDetail(): JSX.Element {
       >
         <RNText style={themed({ fontSize: 16 })}>← Home</RNText>
       </TouchableOpacity>
-
+        <OSMMapView
+        height={260}
+        initialRegion={center}
+        followUserOnMount={false}
+        showsUserLocation={true}
+        disableGesturesUntilTap={true}
+      />
       <ScrollView contentContainerStyle={themed({ padding: 16, paddingTop: (insets.top ?? 0) + 56 })}>
         <RNText style={themed({ fontSize: 20, fontWeight: "700", marginBottom: 8 })}>
           {hike?.title ?? "Untitled"}

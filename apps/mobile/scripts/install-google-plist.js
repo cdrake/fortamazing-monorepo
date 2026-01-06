@@ -103,15 +103,16 @@ console.log('Using target UUID:', targetUuid);
 // compute the relative path used in the project (relative to the project root)
 const relativePlistPath = path.relative(path.join(IOS_DIR, `${projectName}.xcodeproj`, '..'), destPlistPath);
 
-// Add the resource file to the project (this will create file reference and add to resources)
-const fileRef = proj.addResourceFile(relativePlistPath, { target: targetUuid });
+if(relativePlistPath) {
+  // Add the resource file to the project (this will create file reference and add to resources)
+  const fileRef = proj.addResourceFile(relativePlistPath, { target: targetUuid });
 
-if (!fileRef) {
-  console.log('Note: file may already be present in the project; continuing.');
-} else {
-  console.log('Added resource to project:', JSON.stringify(fileRef));
+  if (!fileRef) {
+    console.log('Note: file may already be present in the project; continuing.');
+  } else {
+    console.log('Added resource to project:', JSON.stringify(fileRef));
+  }
 }
-
 // Save project changes
 fs.writeFileSync(projectPbxprojPath, proj.writeSync());
 console.log('Updated project.pbxproj');
