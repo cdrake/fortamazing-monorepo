@@ -48,7 +48,8 @@
           ]
         }
       ],
-      "NSLocationWhenInUseUsageDescription": "We use your location to center the map on you so you can find nearby hikes."
+      "NSLocationWhenInUseUsageDescription": "We use your location to center the map on you so you can find nearby hikes.",
+      "NSLocationAlwaysAndWhenInUseUsageDescription": "We use your location to record and show activity tracks even while the app is in the background. This is optional and only used when you start tracking."
     }
   },
   "web": {
@@ -109,6 +110,10 @@
             ]
           }
         ]
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "We use your location to center the map and show nearby hikes.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "We use your location to record and show activity tracks even while the app is in the background. This is optional and only used when you start tracking."
       },
       "bundleIdentifier": "com.cdrake.fortamazingexpoapp"
     }
