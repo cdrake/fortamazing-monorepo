@@ -2,7 +2,7 @@
   "name": "FortAmazingExpoApp",
   "slug": "FortAmazingExpoApp",
   "scheme": "fortamazingexpoapp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "orientation": "portrait",
   "userInterfaceStyle": "automatic",
   "icon": "./assets/images/app-icon-all.png",
@@ -27,7 +27,28 @@
   "ios": {
     "icon": "./assets/images/app-icon-ios.png",
     "supportsTablet": true,
-    "bundleIdentifier": "com.fortamazing.app"
+    "bundleIdentifier": "com.fortamazing.app",
+    "privacyManifests": {
+      "NSPrivacyAccessedAPITypes": [
+        {
+          "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+          "NSPrivacyAccessedAPITypeReasons": [
+            "CA92.1"
+          ]
+        }
+      ]
+    },
+    "infoPlist": {
+      "ITSAppUsesNonExemptEncryption": false,
+      "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "fortamazingexpoapp",
+              "com.googleusercontent.apps.304795134519-21iceou9hdovknpsjfn3pqvmnc80jf8t"
+            ]
+          }
+        ]
+    }
   },
   "web": {
     "favicon": "./assets/images/app-icon-web-favicon.png",
@@ -62,6 +83,9 @@
   "extra": {
     "ignite": {
       "version": "11.3.2"
+    },
+    "eas": {
+      "projectId": "90e2bde0-19f5-4034-b89d-f17e61827069"
     }
   }
 }
