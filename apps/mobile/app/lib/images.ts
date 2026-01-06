@@ -24,7 +24,7 @@ export type HikeImage = {
  *   - 'users/uid/hikes/.../images/abc.jpg' -> used directly with storageRef
  * Returns undefined on failure.
  */
-async function resolveStoragePathToDownloadUrl(pathOrGs?: string) {
+export async function resolveStoragePathToDownloadUrl(pathOrGs?: string) {
   if (!pathOrGs || typeof pathOrGs !== "string") return undefined;
   try {
     const storage = getStorage();

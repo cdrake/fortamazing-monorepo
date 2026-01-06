@@ -1,183 +1,88 @@
 // src/hooks/fetchUserHikes.ts
-import { getDocs, collection, query, orderBy, DocumentData } from "firebase/firestore";
-import { db } from "@/config/firebase";
-import { gsPathToDownloadUrl } from "@/lib/hikeStorageHelpers";
-import { getStorage } from "firebase/storage";
-import type { FirebaseError } from "firebase/app";
-import { auth as firebaseAuth } from "@/config/firebase";
+import { getDocs, collection, query, orderBy } from "firebase/firestore";
+import { getDownloadURL, getStorage, ref as storageRef } from "firebase/storage";
+import { db } from "@/config/firebase"; // keep your existing exports
+import { app as firebaseApp } from "@/config/firebase"; // ensure this is exported from your config
 
-/**
- * Hike shape returned to the app (lightweight)
- */
 export type MobileHike = {
   id: string;
   title?: string;
-  ownerUid?: string;
-  ownerUsername?: string | undefined;
-  public?: boolean;
+  descriptionMd?: string;
   createdAt?: any;
+  public?: boolean;
+  ownerUid?: string;
+  ownerUsername?: string | null;
   days?: any[];
-  distance_m?: number | null;
-  images?: Array<{ path?: string; url?: string; meta?: unknown }>;
-  thumbnailUrl?: string | undefined;
-  raw?: DocumentData;
+  images?: Array<{ path?: string; url?: string }>;
+  resolvedImageUrls?: string[];
+  thumbnailUrl?: string | null;
+  raw?: any;
 };
 
-/**
- * Type guard to narrow (MobileHike | null) to MobileHike
- */
-function isMobileHike(v: MobileHike | null): v is MobileHike {
-  return v !== null;
+async function gsPathToDownloadUrlWeb(gsPathOrPath?: string) {
+  if (!gsPathOrPath) return undefined;
+  try {
+    const storage = getStorage(firebaseApp);
+    let path = gsPathOrPath;
+    if (path.startsWith("gs://")) path = path.replace(/^gs:\/\//, "");
+    if (path.startsWith("/")) path = path.replace(/^\//, "");
+    const ref = storageRef(storage, path);
+    return await getDownloadURL(ref);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn("gsPathToDownloadUrlWeb failed for", gsPathOrPath, err);
+    return undefined;
+  }
 }
 
-export async function fetchUserHikes(userUid: string): Promise<MobileHike[]> {
-  if (!userUid) {
-    console.warn("[fetchUserHikes] called with empty userUid");
-    return [];
-  }
+/**
+ * Fetch user hikes once (not realtime). Returns MobileHike[] with thumbnailUrl set.
+ */
+export async function fetchUserHikes(userUid: string, limitCount = 100): Promise<MobileHike[]> {
+  const hikesRef = collection(db, "users", userUid, "hikes");
+  const q = query(hikesRef, orderBy("createdAt", "desc"));
+  const snap = await getDocs(q);
 
-  console.group(`[fetchUserHikes] start - userUid=${userUid}`);
-  // debug: show firebase auth user at start (may be null)
-  try {
-    console.log("[fetchUserHikes] firebaseAuth.currentUser:", firebaseAuth?.currentUser?.uid ?? null);
-  } catch (e) {
-    console.warn("[fetchUserHikes] could not read firebaseAuth.currentUser", e);
-  }
-  // debug: configured storage bucket
-  try {
-    const configuredBucket = (getStorage() as any)?.app?.options?.storageBucket;
-    console.log("[fetchUserHikes] storage bucket configured:", configuredBucket);
-  } catch (e) {
-    console.warn("[fetchUserHikes] could not read storage config", e);
-  }
+  const items = await Promise.all(
+    snap.docs.map(async (docSnap) => {
+      const data = docSnap.data() as any;
+      const images = Array.isArray(data.images) ? data.images : [];
 
-  const hikesColRef = collection(db, "users", userUid, "hikes");
-  const q = query(hikesColRef, orderBy("createdAt", "desc"));
-  console.log("[fetchUserHikes] query constructed:", { path: `users/${userUid}/hikes`, orderBy: "createdAt desc" });
+      // Resolve each image to a usable URL
+      const resolved = await Promise.all(
+        images.map(async (img: any) => {
+          if (!img) return undefined;
+          if (img.url && typeof img.url === "string") return img.url;
+          if (img.path && typeof img.path === "string") return await gsPathToDownloadUrlWeb(img.path);
+          return undefined;
+        })
+      );
 
-  // helper: resolve image url but swallow any per-image errors
-  async function safeResolveImage(img: any, docId: string, imgIdx: number): Promise<string | undefined> {
-    try {
-      if (!img) return undefined;
-      if (typeof img.url === "string" && img.url.length > 0) {
-        console.log(`[fetchUserHikes] doc ${docId} image[${imgIdx}] using stored url`);
-        return img.url;
-      }
-      if (typeof img.path === "string" && img.path.length > 0) {
-        console.log(`[fetchUserHikes] doc ${docId} image[${imgIdx}] resolving gs path`, img.path);
-        const resolved = await gsPathToDownloadUrl(img.path);
-        console.log(`[fetchUserHikes] doc ${docId} image[${imgIdx}] resolved ->`, resolved);
-        return resolved;
-      }
-      if (typeof img === "string") {
-        // image might be stored as just a raw string path/url
-        if (img.startsWith("http")) return img;
-        return await gsPathToDownloadUrl(img);
-      }
-      return undefined;
-    } catch (e) {
-      console.warn(`[fetchUserHikes] doc ${docId} image[${imgIdx}] resolution failed (non-fatal)`, e);
-      return undefined;
-    }
-  }
+      const presentUrls = resolved.filter(Boolean) as string[];
+      const thumbnailUrl = presentUrls.length ? presentUrls[0] : null;
 
-  try {
-    const snap = await getDocs(q);
-    console.log(`[fetchUserHikes] snapshot received - docs: ${snap.size}`);
+      const item: MobileHike = {
+        id: docSnap.id,
+        title: data.title ?? `Hike ${docSnap.id}`,
+        descriptionMd: data.descriptionMd ?? "",
+        createdAt: data.createdAt ?? null,
+        public: data.public ?? false,
+        ownerUid: (data.owner && data.owner.uid) ?? userUid,
+        ownerUsername: (data.owner && data.owner.username) ?? null,
+        days: data.days ?? [],
+        images,
+        resolvedImageUrls: presentUrls,
+        thumbnailUrl,
+        raw: data,
+      };
 
-    const itemsMaybe = await Promise.all(
-      snap.docs.map(async (d, idx) => {
-        console.groupCollapsed(`[fetchUserHikes] processing doc ${idx} id=${d.id}`);
-        let raw: Record<string, unknown> | null = null;
-        try {
-          raw = d.data() as Record<string, unknown> | null;
-          console.log("raw keys:", raw ? Object.keys(raw) : raw);
-        } catch (err) {
-          console.error(`[fetchUserHikes] failed to read data() for doc ${d.id}`, err);
-          console.groupEnd();
-          return null;
-        }
-        if (!raw) {
-          console.warn(`[fetchUserHikes] doc ${d.id} has no data -> skipping`);
-          console.groupEnd();
-          return null;
-        }
+      // debug
+      // eslint-disable-next-line no-console
+      console.debug("[fetchUserHikes] resolved", item.id, { resolvedImageUrls: presentUrls, thumbnailUrl });
 
-        // days handling
-        const days = Array.isArray(raw.days) ? (raw.days as unknown[]) : undefined;
-        if (!days) {
-          console.warn(`[fetchUserHikes] doc ${d.id} missing or invalid 'days' field - skipping (doc may be incomplete)`);
-          console.groupEnd();
-          return null;
-        }
+      return item;
+    })
+  );
 
-        // compute total distance
-        let totalDistance: number | null = null;
-        try {
-          const sum = (days || []).reduce((acc: number, day: unknown) => {
-            if (day && typeof day === "object") {
-              const stat = (day as Record<string, unknown>).stats as Record<string, unknown> | undefined;
-              const v = stat && typeof stat.distance_m === "number" ? (stat.distance_m as number) : 0;
-              return acc + v;
-            }
-            return acc;
-          }, 0);
-          totalDistance = sum > 0 ? sum : null;
-          console.log(`[fetchUserHikes] doc ${d.id} totalDistance=${totalDistance}`);
-        } catch (err) {
-          console.error(`[fetchUserHikes] error computing totalDistance for doc ${d.id}`, err);
-          totalDistance = null;
-        }
-
-        // resolve images (prefer url, otherwise attempt to convert gs:// or path)
-        const imagesRaw = Array.isArray(raw.images) ? (raw.images as any[]) : [];
-        const resolvedImageUrls = await Promise.all(
-          imagesRaw.map((img: any, imgIdx: number) => safeResolveImage(img, d.id, imgIdx))
-        );
-
-        const firstThumb = resolvedImageUrls.find(Boolean) as string | undefined;
-        const owner = raw.owner as Record<string, unknown> | undefined;
-
-        const result: MobileHike = {
-          id: d.id,
-          title: typeof raw.title === "string" ? raw.title : undefined,
-          ownerUid: userUid,
-          ownerUsername: (owner?.displayName as unknown as string) ?? (owner?.email as unknown as string) ?? undefined,
-          public: !!raw.public,
-          createdAt: raw.createdAt,
-          days,
-          distance_m: totalDistance,
-          images: imagesRaw,
-          thumbnailUrl: firstThumb,
-          raw,
-        };
-
-        console.log(`[fetchUserHikes] doc ${d.id} -> assembled MobileHike`, {
-          id: result.id,
-          title: result.title,
-          thumbnail: result.thumbnailUrl,
-          distance_m: result.distance_m,
-        });
-
-        console.groupEnd();
-        return result;
-      })
-    );
-
-    const items = itemsMaybe.filter(isMobileHike);
-    console.log(`[fetchUserHikes] returning ${items.length} items`);
-    console.groupEnd();
-    return items;
-  } catch (err) {
-    const maybeFirebaseErr = err as FirebaseError | Error;
-    console.error("[fetchUserHikes] top-level error while fetching hikes:", {
-      name: maybeFirebaseErr.name,
-      message: maybeFirebaseErr.message,
-      code: (maybeFirebaseErr as any).code,
-      stack: maybeFirebaseErr.stack,
-    });
-    console.groupEnd();
-    // rethrow so caller can set UI error state (keeps behavior consistent)
-    throw err;
-  }
+  return items;
 }

@@ -1,11 +1,10 @@
 // src/hooks/useUserHikes.ts
 import { useEffect, useState } from "react";
 import { doc, collection, query, orderBy, onSnapshot, QuerySnapshot, DocumentData } from "firebase/firestore";
-import { db, auth } from "../config/firebase"; // <- import auth from your firebase module
-import { gsPathToDownloadUrl } from "@/lib/hikeStorageHelpers";
-import { getDownloadURL, getStorage, ref as storageRef, } from "firebase/storage";
+import { db, auth } from "../config/firebase";
+import { getDownloadURL, getStorage, ref as storageRef } from "firebase/storage";
 import { app as firebaseApp } from "@/config/firebase";
-
+import { resolveStoragePathToDownloadUrl } from "@/lib/images";
 export type HikeItem = {
   id: string;
   title: string;
@@ -16,26 +15,9 @@ export type HikeItem = {
   days?: any[];
   images?: Array<{ path?: string; url?: string }>;
   resolvedImageUrls?: string[];
+  thumbnailUrl?: string | null;
   raw?: any;
 };
-
-// helper for web (you can also reuse your server helper)
-async function gsPathToDownloadUrlWeb(gsPathOrPath?: string) {
-  if (!gsPathOrPath) return undefined;
-  try {
-    const storage = getStorage(firebaseApp);
-    let path = gsPathOrPath;
-    if (path.startsWith("gs://")) path = path.replace(/^gs:\/\//, "");
-    const ref = storageRef(storage, path);
-    const dl = await getDownloadURL(ref);
-    return dl;
-  } catch (err) {
-    // don't throw — return undefined and let caller handle missing image
-    // eslint-disable-next-line no-console
-    console.warn("gsPathToDownloadUrlWeb failed for", gsPathOrPath, err);
-    return undefined;
-  }
-}
 
 export function useUserHikes(limitCount = 100) {
   const [hikes, setHikes] = useState<HikeItem[]>([]);
@@ -46,7 +28,6 @@ export function useUserHikes(limitCount = 100) {
     setLoading(true);
     setError(null);
 
-    // Use the exported auth instance (avoids initializeApp race)
     const user = auth?.currentUser;
     if (!user) {
       setHikes([]);
@@ -66,16 +47,25 @@ export function useUserHikes(limitCount = 100) {
             snap.docs.map(async (docSnap) => {
               const data = docSnap.data() as any;
               const images = Array.isArray(data.images) ? data.images : [];
+
               const resolvedImageUrls = await Promise.all(
                 images.map(async (img: any) => {
                   if (!img) return null;
                   if (img.url && typeof img.url === "string") return img.url;
-                  if (img.path && typeof img.path === "string") return await gsPathToDownloadUrl(img.path);
+                  if (img.path && typeof img.path === "string") {
+                    // use the local web/native helper defined above
+                    return await resolveStoragePathToDownloadUrl(img.path);
+                  }
                   return undefined;
                 })
               );
 
-              return {
+              console.log("[useUserHikes] resolvedImageUrls for hike", docSnap.id, resolvedImageUrls);
+
+              const presentUrls = resolvedImageUrls.filter(Boolean) as string[];
+              const thumbnailUrl = presentUrls.length > 0 ? presentUrls[0] : null;
+
+              const item: HikeItem = {
                 id: docSnap.id,
                 title: data.title ?? `Hike ${docSnap.id}`,
                 descriptionMd: data.descriptionMd ?? "",
@@ -84,9 +74,16 @@ export function useUserHikes(limitCount = 100) {
                 ownerUid: (data.owner && data.owner.uid) ?? user.uid,
                 days: data.days ?? [],
                 images,
-                resolvedImageUrls: resolvedImageUrls.filter(Boolean) as string[],
+                resolvedImageUrls: presentUrls,
+                thumbnailUrl,
                 raw: data,
-              } as HikeItem;
+              };
+
+              // quick debug log so you can see the resolved urls in console
+              // eslint-disable-next-line no-console
+              console.debug("[useUserHikes] resolved", item.id, { resolvedImageUrls: presentUrls, thumbnailUrl });
+
+              return item;
             })
           );
 

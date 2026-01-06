@@ -15,8 +15,11 @@ import { fetchUserHikes, type MobileHike } from "@/hooks/fetchUserHikes";
 import { auth } from "@/config/firebase";
 import type { AppStackScreenProps } from "@/navigators/navigationTypes";
 import { useAppTheme } from "@/theme/context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = AppStackScreenProps<"Home">;
+
+
 
 export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { themed } = useAppTheme();
@@ -24,6 +27,24 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const insets = useSafeAreaInsets();
+
+  const ListHeader = () => (
+  <View
+    style={{
+      paddingTop: insets.top + 12,
+      paddingHorizontal: 16,
+      paddingBottom: 8,
+      backgroundColor: "transparent",
+    }}
+  >
+    <Text size="xl" weight="bold">
+      Hikes
+    </Text>
+  </View>
+);
+
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -111,10 +132,18 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
         data={hikes}
         keyExtractor={(i) => i.id}
         renderItem={renderItem}
-        contentContainerStyle={{ paddingBottom: 120 }}
-        ListEmptyComponent={!loading ? <Text style={{ padding: 20 }}>No hikes found</Text> : null}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      />
+        ListHeaderComponent={ListHeader}
+        contentContainerStyle={{
+            paddingBottom: insets.bottom + 120,
+        }}
+        ListEmptyComponent={
+            !loading ? <Text style={{ padding: 20 }}>No hikes found</Text> : null
+        }
+        refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        />
+
     </Screen>
   );
 };
