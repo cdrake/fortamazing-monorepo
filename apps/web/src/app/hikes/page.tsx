@@ -1,15 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import {
-  collection,
-  getDocs,
-  query,
-  orderBy,
-  QuerySnapshot,
-  DocumentData,
-} from "firebase/firestore";
+import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 import TrackUploader from "./components/TrackUploader";
@@ -21,8 +14,8 @@ type HikeDoc = {
   ownerUid?: string;
   ownerUsername?: string;
   public?: boolean;
-  createdAt?: any;
-  days?: any[];
+  createdAt?: unknown;
+  days?: unknown[];
   distance_m?: number | null;
 };
 
@@ -64,41 +57,52 @@ export default function HikesPage() {
     try {
       const hikesColRef = collection(db, "users", user.uid, "hikes");
       const q = query(hikesColRef, orderBy("createdAt", "desc"));
-      const snap: QuerySnapshot<DocumentData> = await getDocs(q);
+      const snap = await getDocs(q);
 
       const items: HikeDoc[] = snap.docs
         .map((d) => {
-          const data = d.data() as any;
-          if (!data || !Array.isArray(data.days)) return null;
+          const raw = d.data() as Record<string, unknown> | null;
+          if (!raw) return null;
+
+          const days = Array.isArray(raw.days) ? (raw.days as unknown[]) : undefined;
+          if (!days) return null;
 
           let totalDistance: number | null = null;
           try {
-            const sum = (data.days || []).reduce((acc: number, day: any) => {
-              const v = day?.stats?.distance_m;
-              return acc + (typeof v === "number" ? v : 0);
+            const sum = (days || []).reduce((acc: number, day: unknown) => {
+              if (day && typeof day === "object") {
+                const stat = (day as Record<string, unknown>).stats as Record<string, unknown> | undefined;
+                const v = stat && typeof stat.distance_m === "number" ? (stat.distance_m as number) : 0;
+                return acc + v;
+              }
+              return acc;
             }, 0);
             totalDistance = sum > 0 ? sum : null;
-          } catch (e) {
+          } catch {
             totalDistance = null;
           }
 
+          const owner = raw.owner as Record<string, unknown> | undefined;
+
           return {
             id: d.id,
-            title: data.title,
+            title: typeof raw.title === "string" ? raw.title : undefined,
             ownerUid: user.uid,
-            ownerUsername: data.owner?.displayName ?? data.owner?.email ?? undefined,
-            public: !!data.public,
-            createdAt: data.createdAt,
-            days: data.days,
+            ownerUsername: owner?.displayName ?? owner?.email ?? undefined,
+            public: !!raw.public,
+            createdAt: raw.createdAt,
+            days,
             distance_m: totalDistance,
           } as HikeDoc;
         })
         .filter(Boolean) as HikeDoc[];
 
       setHikes(items);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      // log error and show friendly message
+      // eslint-disable-next-line no-console
       console.error("Error loading user hikes:", err);
-      setError(String(err?.message ?? err));
+      setError(String((err as Error)?.message ?? err ?? "Unknown error"));
       setHikes([]);
     } finally {
       setLoading(false);
@@ -110,7 +114,7 @@ export default function HikesPage() {
     const unsub = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       if (user) {
-        loadUserHikes(user);
+        void loadUserHikes(user);
       } else {
         setHikes([]);
       }
@@ -136,18 +140,22 @@ export default function HikesPage() {
       if (detailLoadRef.current) {
         try {
           await detailLoadRef.current(hikeId);
-        } catch (err) {
-          console.error("Error calling TrackDetail load handler:", err);
+        } catch (_err) {
+          // eslint-disable-next-line no-console
+          console.error("Error calling TrackDetail load handler:", _err);
           // show friendly message
           alert("Failed to load the hike in detail view — check console for details.");
         }
         return;
       }
-      // eslint-disable-next-line no-await-in-loop
+
+      // wait a bit
+      // eslint-disable-next-line @typescript-eslint/await-thenable
       await new Promise((res) => setTimeout(res, intervalMs));
     }
 
     // timed out waiting for child to register
+    // eslint-disable-next-line no-console
     console.warn("Timed out waiting for TrackDetail to register load handler");
     alert("Detail view not ready yet. Try again in a moment.");
   }, []);
@@ -157,10 +165,7 @@ export default function HikesPage() {
       <h1 className="text-2xl font-bold mb-4">My Hikes</h1>
 
       <div className="mb-6 flex items-center gap-3">
-        <button
-          className="px-3 py-1 border rounded bg-white"
-          onClick={openUploader}
-        >
+        <button className="px-3 py-1 border rounded bg-white" onClick={openUploader}>
           New Upload
         </button>
 
@@ -168,8 +173,11 @@ export default function HikesPage() {
           className="px-3 py-1 border rounded"
           onClick={() => {
             const user = getAuth().currentUser;
-            if (user) loadUserHikes(user);
-            else setError("Sign in to refresh your hikes");
+            if (user) {
+              void loadUserHikes(user);
+            } else {
+              setError("Sign in to refresh your hikes");
+            }
           }}
           disabled={!currentUser}
         >
@@ -177,9 +185,13 @@ export default function HikesPage() {
         </button>
 
         {currentUser ? (
-          <div className="text-sm text-gray-700 ml-auto">Signed in as {currentUser.displayName ?? currentUser.email}</div>
+          <div className="text-sm text-gray-700 ml-auto">
+            Signed in as {currentUser.displayName ?? currentUser.email}
+          </div>
         ) : (
-          <div className="text-sm text-gray-700 ml-auto">Not signed in — sign in to see your uploaded hikes.</div>
+          <div className="text-sm text-gray-700 ml-auto">
+            Not signed in — sign in to see your uploaded hikes.
+          </div>
         )}
       </div>
 
@@ -232,9 +244,9 @@ export default function HikesPage() {
             <div className="mt-2 text-sm text-gray-600">
               {h.createdAt ? (
                 <span>
-                  {typeof h.createdAt?.toDate === "function"
-                    ? h.createdAt.toDate().toLocaleString()
-                    : new Date(h.createdAt).toLocaleString()}
+                  {typeof (h.createdAt as { toDate?: unknown })?.toDate === "function"
+                    ? (h.createdAt as { toDate: () => Date }).toDate().toLocaleString()
+                    : new Date(String(h.createdAt)).toLocaleString()}
                 </span>
               ) : (
                 <span>—</span>
@@ -255,10 +267,15 @@ export default function HikesPage() {
         >
           <div className="absolute inset-0 bg-black/50" onClick={() => setDetailOpen(false)} />
 
-          <div className="relative w-full max-w-6xl bg-white rounded-t-xl md:rounded-xl shadow-lg p-4 m-4 overflow-auto" style={{ maxHeight: "90vh" }}>
+          <div
+            className="relative w-full max-w-6xl bg-white rounded-t-xl md:rounded-xl shadow-lg p-4 m-4 overflow-auto"
+            style={{ maxHeight: "90vh" }}
+          >
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-semibold">Track detail</h2>
-              <button className="px-2 py-1 border rounded" onClick={() => setDetailOpen(false)} aria-label="Close detail">Close</button>
+              <button className="px-2 py-1 border rounded" onClick={() => setDetailOpen(false)} aria-label="Close detail">
+                Close
+              </button>
             </div>
 
             <div>
@@ -279,10 +296,15 @@ export default function HikesPage() {
         >
           <div className="absolute inset-0 bg-black/50" onClick={() => setUploaderOpen(false)} />
 
-          <div className="relative w-full max-w-6xl bg-white rounded-t-xl md:rounded-xl shadow-lg p-4 m-4 overflow-auto" style={{ maxHeight: "90vh" }}>
+          <div
+            className="relative w-full max-w-6xl bg-white rounded-t-xl md:rounded-xl shadow-lg p-4 m-4 overflow-auto"
+            style={{ maxHeight: "90vh" }}
+          >
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-semibold">Track uploader</h2>
-              <button className="px-2 py-1 border rounded" onClick={() => setUploaderOpen(false)} aria-label="Close uploader">Close</button>
+              <button className="px-2 py-1 border rounded" onClick={() => setUploaderOpen(false)} aria-label="Close uploader">
+                Close
+              </button>
             </div>
 
             <div>

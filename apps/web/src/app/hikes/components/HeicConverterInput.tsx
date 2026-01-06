@@ -1,14 +1,13 @@
-// src/app/hikes/components/HeicConverterInput.tsx
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import type { LatLon } from "../lib/imageHelpers"; // adjust path if needed
+import type { LatLon } from "../lib/imageHelpers";
 
 export type ConvertedItem = {
   original: File;
   converted: Blob;
   previewUrl: string; // object URL for converted blob
-  exif?: any; // raw exifreader tags if available
+  exif?: Record<string, unknown> | null;
   gps?: LatLon | null;
   error?: string | null;
 };
@@ -21,15 +20,17 @@ type Props = {
   className?: string;
 };
 
-/**
- * HeicConverterInput
- * - lets user pick HEIC/HEIF files
- * - converts each to JPEG using convertHeicToJpegPreserveExif (dynamically imported)
- * - extracts EXIF (exifreader) for GPS if available and returns converted blobs + preview urls
- *
- * Example:
- * <HeicConverterInput onConverted={(items)=> console.log(items)} />
- */
+/** Types for the dynamic helpers module (best-effort) */
+type ImageHelpers = {
+  convertHeicToJpegPreserveExif?: (f: File) => Promise<File | Blob | { file?: File | Blob } | null>;
+  convertHeicFileToJpegFile?: (f: File) => Promise<File | Blob | { file?: File | Blob } | null>;
+  convertHeicFileToJpeg?: (f: File) => Promise<File | Blob | { file?: File | Blob } | null>;
+  extractExifFromFile?: (f: File) => Promise<Record<string, unknown> | LatLon | null>;
+  readAllExifTags?: (f: File) => Promise<Record<string, unknown> | null>;
+  gpsToDecimal?: (gpsContainer: unknown) => LatLon | null;
+  // other helpers possibly present...
+};
+
 export default function HeicConverterInput({
   multiple = true,
   accept = "image/heic,image/heif,.heic,.heif",
@@ -48,162 +49,189 @@ export default function HeicConverterInput({
   useEffect(() => {
     return () => {
       convertedItems.forEach((it) => {
-        try { URL.revokeObjectURL(it.previewUrl); } catch {}
+        try {
+          URL.revokeObjectURL(it.previewUrl);
+        } catch {
+          /* ignore */
+        }
       });
     };
   }, [convertedItems]);
 
-  const handleFilesSelected = useCallback((files: FileList | null) => {
-    if (!files) return;
-    const arr = Array.from(files).filter((f) => f instanceof File);
-    setSelectedFiles(arr);
-    setError(null);
-    if (autoConvert && arr.length > 0) {
-      // kick off conversion automatically
-      // delay slightly so UI updates
-      setTimeout(() => convertFiles(arr), 50);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoConvert]);
+  const handleFilesSelected = useCallback(
+    (files: FileList | null) => {
+      if (!files) return;
+      const arr = Array.from(files).filter((f): f is File => f instanceof File);
+      setSelectedFiles(arr);
+      setError(null);
+      if (autoConvert && arr.length > 0) {
+        // kick off conversion automatically (allow UI to update)
+        setTimeout(() => convertFiles(arr), 50);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [autoConvert]
+  );
 
   const openPicker = useCallback(() => {
     if (inputRef.current) inputRef.current.click();
   }, []);
 
   // conversion worker: dynamic import of helpers inside function
-  const convertFiles = useCallback(async (files: File[]) => {
-  setConverting(true);
-  setConvertedItems([]);
-  setProgress({ idx: 0, total: files.length });
-  setError(null);
+  const convertFiles = useCallback(
+    async (files: File[]) => {
+      setConverting(true);
+      setConvertedItems([]);
+      setProgress({ idx: 0, total: files.length });
+      setError(null);
 
-  // dynamic import local helper module
-  let helpers: any;
-  try {
-    helpers = await import("../lib/imageHelpers"); // path relative to component
-  } catch (e) {
-    console.error("Failed to import imageHelpers:", e);
-    setError("Failed to load conversion helpers.");
-    setConverting(false);
-    return;
-  }
-
-  // handle multiple possible helper names
-  const convertFn = helpers.convertHeicToJpegPreserveExif ?? helpers.convertHeicFileToJpegFile ?? helpers.convertHeicFileToJpeg ?? null;
-  const extractExifFromFile = helpers.extractExifFromFile ?? null;
-  const readAllExifTags = helpers.readAllExifTags ?? null;
-  const gpsToDecimal = helpers.gpsToDecimal ?? helpers.gpsToDecimal ?? null;
-
-  if (!convertFn) {
-    console.warn("No convert function found in imageHelpers. Falling back to identity (no conversion).");
-  }
-
-  const results: ConvertedItem[] = [];
-
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    setProgress({ idx: i + 1, total: files.length });
-    try {
-      // 1) Attempt to get **raw tags** (preferred) so we can store/display everything
-      let rawTags: any = null;
-      let gps: LatLon | null = null;
-
-      // Try readAllExifTags (returns full tags) if available
-      if (typeof readAllExifTags === "function") {
-        try {
-          rawTags = await readAllExifTags(file); // may be null
-          if (rawTags) {
-            // readAllExifTags returns expanded tags; some helpers put GPS under .gps or top-level
-            const gpsContainer = rawTags?.gps ?? rawTags;
-            gps = (typeof gpsToDecimal === "function") ? gpsToDecimal(gpsContainer || {}) : null;
-          }
-        } catch (e) {
-          console.warn("readAllExifTags failed:", e);
-          rawTags = null;
-          gps = null;
-        }
-      }
-
-      // 2) If we didn't get raw tags, try extractExifFromFile (might return LatLon directly)
-      if ((!rawTags || !gps) && typeof extractExifFromFile === "function") {
-        try {
-          const maybeLatLon = await extractExifFromFile(file); // some implementations return {lat,lon} directly
-          if (maybeLatLon && typeof maybeLatLon.lat === "number" && typeof maybeLatLon.lon === "number") {
-            gps = maybeLatLon;
-          } else if (!rawTags && typeof readAllExifTags !== "function") {
-            // if extractExifFromFile returns tags in your version, set rawTags
-            rawTags = maybeLatLon;
-            const gpsContainer = rawTags?.gps ?? rawTags;
-            gps = (typeof gpsToDecimal === "function") ? gpsToDecimal(gpsContainer || {}) : null;
-          }
-        } catch (e) {
-          console.warn("extractExifFromFile failed:", e);
-        }
-      }
-
-      // 3) Convert image (if conversion function available); otherwise use original file blob
-      let convertedBlob: Blob;
+      // dynamic import local helper module
+      let helpersModule: ImageHelpers | null = null;
       try {
-        if (convertFn) {
-          // some convert fns return File or Blob; normalize to Blob
-          const out = await convertFn(file);
-          convertedBlob = out instanceof Blob ? out : (out?.file ?? out);
-          if (!(convertedBlob instanceof Blob)) {
-            // if the convert function returns an object like { file, previewUrl }
-            if (out?.file instanceof Blob) convertedBlob = out.file;
-            else throw new Error("convert function returned unexpected shape");
-          }
-        } else {
-          // no convert function — use original file as blob
-          convertedBlob = file;
-        }
-      } catch (convErr: any) {
-        console.warn("Conversion failed, using original file as fallback:", convErr);
-        convertedBlob = file;
+        // dynamic import path relative to component
+        const mod = await import("../lib/imageHelpers");
+        helpersModule = (mod as unknown) as ImageHelpers;
+      } catch (_err) {
+        // eslint-disable-next-line no-console
+        console.error("Failed to import imageHelpers:", _err);
+        setError("Failed to load conversion helpers.");
+        setConverting(false);
+        return;
       }
 
-      // 4) build preview URL
-      const previewUrl = URL.createObjectURL(convertedBlob);
+      const convertFn =
+        helpersModule.convertHeicToJpegPreserveExif ??
+        helpersModule.convertHeicFileToJpegFile ??
+        helpersModule.convertHeicFileToJpeg ??
+        null;
+      const extractExifFromFile = helpersModule.extractExifFromFile ?? null;
+      const readAllExifTags = helpersModule.readAllExifTags ?? null;
+      const gpsToDecimal = helpersModule.gpsToDecimal ?? null;
 
-      const item: ConvertedItem = {
-        original: file,
-        converted: convertedBlob,
-        previewUrl,
-        exif: rawTags ?? null,
-        gps: gps ?? null,
-        error: null,
-      };
+      if (!convertFn) {
+        // eslint-disable-next-line no-console
+        console.warn("No convert function found in imageHelpers. Falling back to identity (no conversion).");
+      }
 
-      results.push(item);
-      setConvertedItems((prev) => [...prev, item]);
+      const results: ConvertedItem[] = [];
 
-      // small yield
-      await new Promise((r) => setTimeout(r, 60));
-    } catch (e: any) {
-      console.error("Conversion failed for", file.name, e);
-      const msg = e?.message ? String(e.message) : "Conversion failed";
-      const failureItem: ConvertedItem = {
-        original: file,
-        converted: new Blob(),
-        previewUrl: "",
-        exif: null,
-        gps: null,
-        error: msg,
-      };
-      results.push(failureItem);
-      setConvertedItems((prev) => [...prev, failureItem]);
-    }
-  }
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setProgress({ idx: i + 1, total: files.length });
 
-  setProgress(null);
-  setConverting(false);
+        try {
+          // 1) Attempt to get raw EXIF tags and GPS
+          let rawTags: Record<string, unknown> | null = null;
+          let gps: LatLon | null = null;
 
-  // notify parent
-  setTimeout(() => {
-    if (typeof onConverted === "function") onConverted(results);
-  }, 0);
-}, [onConverted]);
+          if (typeof readAllExifTags === "function") {
+            try {
+              const t = await readAllExifTags(file);
+              if (t && typeof t === "object") {
+                rawTags = t as Record<string, unknown>;
+                // Some implementations nest GPS; try both
+                const gpsContainer = (rawTags as any).gps ?? rawTags; // minimal narrowing for lookup
+                if (typeof gpsToDecimal === "function") {
+                  gps = gpsToDecimal(gpsContainer);
+                }
+              }
+            } catch (_readErr) {
+              // eslint-disable-next-line no-console
+              console.warn("readAllExifTags failed:", _readErr);
+              rawTags = null;
+              gps = null;
+            }
+          }
 
+          if ((!rawTags || !gps) && typeof extractExifFromFile === "function") {
+            try {
+              const maybe = await extractExifFromFile(file);
+             
+              if (maybe !== null) {
+                gps = maybe as LatLon;
+              } else if (!rawTags && maybe && typeof maybe === "object") {
+                rawTags = maybe as Record<string, unknown>;
+                const gpsContainer = (rawTags as any).gps ?? rawTags;
+                if (typeof gpsToDecimal === "function") gps = gpsToDecimal(gpsContainer);
+              }
+            } catch (_exifErr) {
+              // eslint-disable-next-line no-console
+              console.warn("extractExifFromFile failed:", _exifErr);
+            }
+          }
+
+          // 3) Convert image (if conversion function available); otherwise use original file blob
+          let convertedBlob: Blob;
+          try {
+            if (convertFn) {
+              const out = await convertFn(file);
+              // Normalize possible shapes: File | Blob | { file: Blob | File } | null
+              if (out instanceof Blob) {
+                convertedBlob = out;
+              } else if (out && typeof out === "object" && (out as { file?: unknown }).file instanceof Blob) {
+                convertedBlob = (out as { file: Blob }).file;
+              } else if (out && typeof out === "object" && (out as { file?: unknown }).file instanceof File) {
+                convertedBlob = (out as { file: File }).file;
+              } else if (out instanceof File) {
+                convertedBlob = out;
+              } else {
+                throw new Error("convert function returned unexpected shape");
+              }
+            } else {
+              convertedBlob = file;
+            }
+          } catch (_convErr) {
+            // eslint-disable-next-line no-console
+            console.warn("Conversion failed, using original file as fallback:", _convErr);
+            convertedBlob = file;
+          }
+
+          // 4) build preview URL
+          const previewUrl = URL.createObjectURL(convertedBlob);
+
+          const item: ConvertedItem = {
+            original: file,
+            converted: convertedBlob,
+            previewUrl,
+            exif: rawTags ?? null,
+            gps: gps ?? null,
+            error: null,
+          };
+
+          results.push(item);
+          setConvertedItems((prev) => [...prev, item]);
+
+          // small yield so UI updates
+          // eslint-disable-next-line @typescript-eslint/await-thenable
+          await new Promise((r) => setTimeout(r, 60));
+        } catch (_err) {
+          // top-level per-file failure (shouldn't usually happen)
+          // eslint-disable-next-line no-console
+          console.error("Conversion failed for", file.name, _err);
+          const msg = (_err && ((_err as Error).message || String(_err))) ?? "Conversion failed";
+          const failureItem: ConvertedItem = {
+            original: file,
+            converted: new Blob(),
+            previewUrl: "",
+            exif: null,
+            gps: null,
+            error: String(msg),
+          };
+          results.push(failureItem);
+          setConvertedItems((prev) => [...prev, failureItem]);
+        }
+      }
+
+      setProgress(null);
+      setConverting(false);
+
+      // notify parent
+      setTimeout(() => {
+        if (typeof onConverted === "function") onConverted(results);
+      }, 0);
+    },
+    [onConverted]
+  );
 
   // UI actions
   const handleConvertClick = useCallback(() => {
@@ -211,13 +239,17 @@ export default function HeicConverterInput({
       setError("No files selected.");
       return;
     }
-    convertFiles(selectedFiles);
+    void convertFiles(selectedFiles);
   }, [selectedFiles, convertFiles]);
 
   const handleClear = useCallback(() => {
     // revoke previews
     convertedItems.forEach((it) => {
-      try { URL.revokeObjectURL(it.previewUrl); } catch {}
+      try {
+        URL.revokeObjectURL(it.previewUrl);
+      } catch {
+        /* ignore */
+      }
     });
     setConvertedItems([]);
     setSelectedFiles([]);
@@ -265,16 +297,10 @@ export default function HeicConverterInput({
       </div>
 
       {progress && (
-        <div style={{ marginTop: 8 }}>
-          Converting {progress.idx}/{progress.total}…
-        </div>
+        <div style={{ marginTop: 8 }}>Converting {progress.idx}/{progress.total}…</div>
       )}
 
-      {error && (
-        <div style={{ marginTop: 8, color: "red" }}>
-          {error}
-        </div>
-      )}
+      {error && <div style={{ marginTop: 8, color: "red" }}>{error}</div>}
 
       <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12 }}>
         {convertedItems.map((it, idx) => (
@@ -284,7 +310,19 @@ export default function HeicConverterInput({
               <div style={{ color: "red", marginTop: 6 }}>Error: {it.error}</div>
             ) : (
               <>
-                <div style={{ marginTop: 8, width: "100%", height: 120, overflow: "hidden", borderRadius: 6, background: "#fafafa", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div
+                  style={{
+                    marginTop: 8,
+                    width: "100%",
+                    height: 120,
+                    overflow: "hidden",
+                    borderRadius: 6,
+                    background: "#fafafa",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
                   {it.previewUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={it.previewUrl} alt={it.original.name} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
@@ -294,7 +332,9 @@ export default function HeicConverterInput({
                 </div>
 
                 <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
-                  <a href={it.previewUrl} target="_blank" rel="noreferrer" className="px-2 py-1 border rounded text-sm">Open</a>
+                  <a href={it.previewUrl} target="_blank" rel="noreferrer" className="px-2 py-1 border rounded text-sm">
+                    Open
+                  </a>
                   <a
                     href={it.previewUrl}
                     download={(it.original.name || "photo") + ".jpg"}

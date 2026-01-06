@@ -1,7 +1,7 @@
 "use client";
 
 import React, { JSX, useCallback, useEffect, useRef, useState } from "react";
-import type { FeatureCollection, Geometry, Position } from "geojson";
+import type { Feature, FeatureCollection, Geometry, Position } from "geojson";
 import * as turf from "@turf/turf";
 import { getAuth } from "firebase/auth";
 import {
@@ -23,20 +23,19 @@ import ClientFileInput from "@/app/hikes/components/ClientFileInput";
 import { createHikeWithStorage } from "../lib/hikeEditor";
 import { DayTrack } from "../lib/geo";
 import { getStorage, ref as storageRef, getDownloadURL } from "firebase/storage";
-import { convertHeicFile, extractExifFromFile, extractExifFromUrl, insertGpsExifIntoJpeg, LatLon } from "../lib/imageHelpers";
+import {
+  convertHeicFile,
+  extractExifFromFile,
+  extractExifFromUrl,
+  insertGpsExifIntoJpeg,
+  LatLon,
+} from "../lib/imageHelpers";
 import MarkdownEditor from "./MarkdownEditor";
 
 /**
- * TrackUploader component
- * - Upload & preview GPX/KML day tracks
- * - Load saved hikes (users/{uid}/hikes/{hikeId})
- * - Show combined preview, fit to extent
- * - Add markers (generic addMarker function)
- * - Load images and (best-effort) extract EXIF from image URLs to add markers when inside extent
+ * TrackUploader component (typed)
  *
- * Notes:
- * - dynamic imports used for react-leaflet/leaflet and heavy EXIF libs to keep bundle small and SSR-safe
- * - this is a client-only component ("use client")
+ * - main changes: avoid `any` where possible, use `unknown` + narrow, add small helper guards.
  */
 
 type UploadState = "idle" | "parsing" | "preview" | "saving" | "saved" | "error";
@@ -53,31 +52,24 @@ const TILE_LAYERS = [
   { id: "stamen-toner", name: "Stamen Toner", url: "https://stamen-tiles.a.ssl.fastly.net/toner/{z}/{x}/{y}.png", options: { maxZoom: 20, tileSize: 256 } },
 ];
 
-function MapSetter({ onReady }: { onReady: (map: any) => void }) {
-  // useMap must be used inside a MapContainer; dynamic import of react-leaflet loads it
-  // This component is inserted inside the MapContainer to obtain the `map` instance
-  // Note: The file using MapSetter must be client-side
-  // We import useMap lazily to avoid compile-time errors if react-leaflet is not loaded.
-  // But here we can import it directly since the file is client-only and react-leaflet is dynamically loaded in parent.
+function MapSetter({ onReady }: { onReady: (map: LeafletMap) => void }) {
   try {
+    // require inside runtime to avoid SSR problems
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { useMap } = require("react-leaflet");
-    const MapSetterInner = () => {
+    const MapSetterInner: React.FC = () => {
       const map = useMap();
       React.useEffect(() => {
-        if (map && typeof onReady === "function") onReady(map);
+        if (map && typeof onReady === "function") onReady(map as LeafletMap);
       }, [map]);
       return null;
     };
-    // render the inner functional component
-    return <MapSetterInner /> as any;
-  } catch (e) {
-    // if react-leaflet not available yet, render nothing
+    return <MapSetterInner /> as unknown as JSX.Element;
+  } catch {
     return null;
   }
 }
 
-// Small toast
 function Toast({ message, show, onClose }: { message: string; show: boolean; onClose: () => void }) {
   useEffect(() => {
     if (!show) return;
@@ -104,26 +96,30 @@ function Toast({ message, show, onClose }: { message: string; show: boolean; onC
   );
 }
 
-// EXIF helpers (local, small)
-function gpsToDecimal(gps: any): { lat: number; lon: number } | null {
+// small EXIF parsing helper (keeps previous behavior)
+function localGpsToDecimal(gps: unknown): { lat: number; lon: number } | null {
   try {
-    const latVals = gps.GPSLatitude?.description || gps.GPSLatitude;
-    const latRef = gps.GPSLatitudeRef?.description || gps.GPSLatitudeRef?.value || gps.GPSLatitudeRef;
-    const lonVals = gps.GPSLongitude?.description || gps.GPSLongitude;
-    const lonRef = gps.GPSLongitudeRef?.description || gps.GPSLongitudeRef?.value || gps.GPSLongitudeRef;
+    if (!gps || typeof gps !== "object") return null;
+    const g = gps as Record<string, unknown>;
+    const latVals = (g.GPSLatitude as any)?.description ?? g.GPSLatitude;
+    const latRef = (g.GPSLatitudeRef as any)?.description ?? (g.GPSLatitudeRef as any)?.value ?? g.GPSLatitudeRef;
+    const lonVals = (g.GPSLongitude as any)?.description ?? g.GPSLongitude;
+    const lonRef = (g.GPSLongitudeRef as any)?.description ?? (g.GPSLongitudeRef as any)?.value ?? g.GPSLongitudeRef;
     if (!latVals || !lonVals) return null;
-    const parseArr = (v: any) => {
-      if (Array.isArray(v)) return v.map((x) => (typeof x === "object" && x.value ? Number(x.value) : Number(x)));
-      if (typeof v === "string") return v.split(",").map(Number);
+
+    const parseArr = (v: unknown) => {
+      if (Array.isArray(v)) return v.map((x) => (typeof x === "object" && x && "value" in (x as any) ? Number((x as any).value) : Number(x)));
+      if (typeof v === "string") return v.split(",").map((s) => Number(s.trim()));
       return null;
     };
+
     const la = parseArr(latVals);
     const lo = parseArr(lonVals);
     if (!la || !lo) return null;
-    const lat = la[0] + (la[1] || 0) / 60 + (la[2] || 0) / 3600;
-    const lon = lo[0] + (lo[1] || 0) / 60 + (lo[2] || 0) / 3600;
-    const latSign = (String(latRef || "").toUpperCase() === "S") ? -1 : 1;
-    const lonSign = (String(lonRef || "").toUpperCase() === "W") ? -1 : 1;
+    const lat = (Number(la[0]) || 0) + (Number(la[1]) || 0) / 60 + (Number(la[2]) || 0) / 3600;
+    const lon = (Number(lo[0]) || 0) + (Number(lo[1]) || 0) / 60 + (Number(lo[2]) || 0) / 3600;
+    const latSign = String(latRef ?? "").toUpperCase() === "S" ? -1 : 1;
+    const lonSign = String(lonRef ?? "").toUpperCase() === "W" ? -1 : 1;
     return { lat: lat * latSign, lon: lon * lonSign };
   } catch {
     return null;
@@ -131,8 +127,7 @@ function gpsToDecimal(gps: any): { lat: number; lon: number } | null {
 }
 
 export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX.Element {
-  // dynamic react-leaflet reference (set when imported)
-  const [RL, setRL] = useState<any | null>(null);
+  const [RL, setRL] = useState<Record<string, unknown> | null>(null);
 
   const [state, setState] = useState<UploadState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -171,12 +166,12 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
     if (typeof window === "undefined") return;
     let mounted = true;
     import("react-leaflet")
-      .then((mod) => { if (mounted) setRL(mod); })
+      .then((mod) => { if (mounted) setRL(mod as Record<string, unknown>); })
       .catch((err) => console.error("react-leaflet dynamic import failed:", err));
     return () => { mounted = false; };
   }, []);
 
-  // fix Leaflet icons by dynamically importing image assets & setting L.Icon.Default options
+  // fix Leaflet icons
   useEffect(() => {
     if (typeof window === "undefined") return;
     let mounted = true;
@@ -184,14 +179,12 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
       try {
         const Lmod = await import("leaflet");
         const L: any = (Lmod as any).default ?? Lmod;
-        // import images; bundlers differ so handle both shapes
         const m1mod = await import("leaflet/dist/images/marker-icon.png");
         const m2mod = await import("leaflet/dist/images/marker-icon-2x.png");
         const shadowMod = await import("leaflet/dist/images/marker-shadow.png");
-        const markerUrl = (m1mod && (m1mod.default ?? (m1mod as any).src)) || "/leaflet/marker-icon.png";
-        const marker2x = (m2mod && (m2mod.default ?? (m2mod as any).src)) || "/leaflet/marker-icon-2x.png";
-        const shadowUrl = (shadowMod && (shadowMod.default ?? (shadowMod as any).src)) || "/leaflet/marker-shadow.png";
-
+        const markerUrl = (m1mod && (m1mod as any).default) || (m1mod as any).src || "/leaflet/marker-icon.png";
+        const marker2x = (m2mod && (m2mod as any).default) || (m2mod as any).src || "/leaflet/marker-icon-2x.png";
+        const shadowUrl = (shadowMod && (shadowMod as any).default) || (shadowMod as any).src || "/leaflet/marker-shadow.png";
         if (!mounted) return;
         L.Icon.Default.mergeOptions({
           iconRetinaUrl: marker2x,
@@ -207,11 +200,10 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
 
   function clearImageMarkers() {
     try {
-      const Lmod = (window as any).L || null;
       const markers = markersRef.current || [];
-      markers.forEach((m: any) => {
+      markers.forEach((m) => {
         try { m.remove?.(); } catch {}
-        try { (m as any).off?.(); } catch {}
+        try { m.off?.(); } catch {}
         try {
           const el = (m as any)._imagePreviewEl;
           if (el && el.parentNode) el.parentNode.removeChild(el);
@@ -222,27 +214,26 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
       });
       markersRef.current = [];
     } catch (e) {
-      // best-effort
       markersRef.current = [];
       console.warn("clearImageMarkers error", e);
     }
   }
 
-  // ---- simple helpers: compute stats / merge ----
+  // ---- small helpers ----
   function computeStats(fc: FeatureCollection<Geometry>) {
     let total = 0;
     const elev: number[] = [];
     try {
       for (const f of fc.features) {
-        try { total += turf.length(f as any, { units: "kilometers" }) * 1000; } catch {}
-        const g: any = f.geometry;
+        try { total += turf.length(f as unknown as Feature, { units: "kilometers" }) * 1000; } catch {}
+        const g = f.geometry as unknown as { type?: string; coordinates?: unknown };
         if (!g) continue;
         const coords: Position[] = [];
         if (g.type === "LineString") coords.push(...(g.coordinates as Position[]));
         else if (g.type === "MultiLineString") coords.push(...((g.coordinates as Position[][]).flat()));
         for (const p of coords) if (p && p.length > 2 && typeof p[2] === "number") elev.push(p[2]);
       }
-    } catch (e) {}
+    } catch {}
     let bounds: [number, number, number, number] | null = null;
     try { bounds = turf.bbox(fc) as [number, number, number, number]; } catch { bounds = null; }
     return { distance_m: Math.round(total), elevation: elev.length ? { min: Math.min(...elev), max: Math.max(...elev) } : null, bounds };
@@ -253,10 +244,9 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
     return { type: "FeatureCollection", features } as FeatureCollection<Geometry>;
   }
 
-  // wait for map helper
   async function waitForMap(timeoutMs = 5000, intervalMs = 150) {
     const start = Date.now();
-    return new Promise<any | null>((resolve) => {
+    return new Promise<LeafletMap | null>((resolve) => {
       if (mapReadyRef.current && mapRef.current) return resolve(mapRef.current);
       const iv = window.setInterval(() => {
         if (mapReadyRef.current && mapRef.current) {
@@ -271,307 +261,207 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
   }
 
   async function convertHeicFileToJpegFile(file: File): Promise<File> {
-  // wrapper that calls the new heic-to based converter and normalizes output to a File (JPEG).
-  const filenameBase = (file.name || "image").replace(/\.[^.]+$/, "");
-  if (typeof window === "undefined") {
-    throw new Error("HEIC conversion unavailable in SSR environment");
+    const filenameBase = (file.name || "image").replace(/\.[^.]+$/, "");
+    if (typeof window === "undefined") {
+      throw new Error("HEIC conversion unavailable in SSR environment");
+    }
+    try {
+      const res = await convertHeicFile(file, { type: "image/jpeg", quality: 0.92 });
+      const out = (res as any)?.file ?? res;
+      if (!out) throw new Error((res as any)?.reason ?? "Conversion returned no file");
+      let outFile: File;
+      if (out instanceof File) outFile = out;
+      else outFile = new File([out as Blob], `${filenameBase}.jpg`, { type: "image/jpeg" });
+      if ((res as any).converted === false) throw new Error((res as any).reason ?? "HEIC conversion not available");
+      return outFile;
+    } catch (e: unknown) {
+      throw new Error((e as any)?.message ?? String(e));
+    }
   }
 
-  try {
-    // call the shared converter (heic-to). It returns a ConvertResult-like object.
-    const res: any = await convertHeicFile(file, { type: "image/jpeg", quality: 0.92 });
-
-    // accept either File or Blob in res.file
-    const outBlobOrFile = res?.file ?? null;
-    if (!outBlobOrFile) {
-      const reason = res?.reason ?? "Conversion returned no file";
-      throw new Error(String(reason));
-    }
-
-    // normalize to File
-    let outFile: File;
-    if (outBlobOrFile instanceof File) {
-      outFile = outBlobOrFile;
-    } else {
-      // it's a Blob; create a File with .jpg extension
-      outFile = new File([outBlobOrFile], `${filenameBase}.jpg`, { type: "image/jpeg" });
-    }
-
-    // If converter indicates it didn't convert (res.converted === false), treat as failure to preserve previous behavior
-    if (res.converted === false) {
-      const reason = res.reason ?? "HEIC conversion not available";
-      throw new Error(String(reason));
-    }
-
-    return outFile;
-  } catch (e: any) {
-    // preserve previous behavior: throw so callers can fall back to original or toObjectURL
-    throw new Error(e?.message ? String(e.message) : String(e));
-  }
-}
-
-  // force redraw simplified
-  function forceTileRedraw(map: any) {
+  function forceTileRedraw(map: LeafletMap | null) {
     if (!map) return;
     try {
-      try { map.invalidateSize(true); } catch {}
-      setTimeout(() => { try { map.invalidateSize(true); } catch {} }, 200);
+      // @ts-ignore leaflet internal
+      (map as any).invalidateSize(true);
+      setTimeout(() => { try { (map as any).invalidateSize(true); } catch {} }, 200);
     } catch (e) { console.warn("forceTileRedraw error", e); }
   }
 
- // add this helper near the top of your component file (so markersRef, mapRef are accessible)
-function createHoverPreviewElement(imageUrl: string, title?: string, size = 120) {
-  const wrapper = document.createElement("div");
-  wrapper.className = "map-image-hover-preview";
-  wrapper.style.position = "absolute";
-  wrapper.style.pointerEvents = "none"; // don't block map interactions
-  wrapper.style.zIndex = "10000";
-  wrapper.style.display = "none";
-  wrapper.style.opacity = "0.95"; // wrapper full opacity; image will use 0.3
-  wrapper.style.transform = "translate(-50%, -100%)"; // center above pointer
-  wrapper.style.transition = "opacity 120ms ease, transform 120ms ease";
-
-  const img = document.createElement("img");
-  img.src = imageUrl;
-  img.alt = title ?? "preview";
-  img.loading = "lazy";
-  img.style.width = `${size}px`;
-  img.style.height = "auto";
-  img.style.maxHeight = `${Math.round(size * 0.75)}px`;
-  img.style.objectFit = "cover";
-  img.style.borderRadius = "6px";
-  img.style.opacity = "0.5"; // requested transparency
-  img.style.display = "block";
-  img.style.pointerEvents = "none";
-
-  // optional: slight shadow to lift it off the map
-  wrapper.style.filter = "drop-shadow(0 6px 18px rgba(0,0,0,0.25))";
-
-  wrapper.appendChild(img);
-  return wrapper;
-}
-
-async function addMarker(
-  lat: number,
-  lon: number,
-  imageUrl: string,
-  opts?: {
-    title?: string;
-    openInNewTab?: boolean; // default true
-    previewSize?: number;   // px, default 120
-  }
-) {
-  const map = mapRef.current as any;
-  if (!map) {
-    console.warn("addMarker: map not ready");
-    return null;
-  }
-
-  try {
-    const Lmod = await import("leaflet");
-    const L: any = (Lmod as any).default ?? Lmod;
-
-    const marker = L.marker([lat, lon], {
-      title: opts?.title ?? "Open image",
-      keyboard: true,
-    }).addTo(map);
-
-    // create preview DOM (same helper inline here)
-    const createPreview = (imageUrlInner: string, titleInner?: string, size = 120) => {
-      const wrapper = document.createElement("div");
-      wrapper.className = "map-image-hover-preview";
-      wrapper.style.position = "absolute";
-      wrapper.style.pointerEvents = "none"; // by default non-interactive for desktop hover
-      wrapper.style.zIndex = "10000";
-      wrapper.style.display = "none";
-      wrapper.style.opacity = "0";
-      wrapper.style.transform = "translate(-50%, -105%) scale(0.98)";
-      wrapper.style.transition = "opacity 120ms ease, transform 120ms ease";
-
-      const img = document.createElement("img");
-      img.src = imageUrlInner;
-      img.alt = titleInner ?? "preview";
-      img.loading = "lazy";
-      img.style.width = `${size}px`;
-      img.style.height = "auto";
-      img.style.maxHeight = `${Math.round(size * 0.75)}px`;
-      img.style.objectFit = "cover";
-      img.style.borderRadius = "6px";
-      img.style.opacity = "0.3"; // you said you'll raise opacity
-      img.style.display = "block";
-      img.style.pointerEvents = "none"; // desktop: don't capture pointer
-      img.style.userSelect = "none";
-
-      // debug handlers (optional)
-      img.onload = () => {
-        // eslint-disable-next-line no-console
-        console.debug("[addMarker] preview image loaded", { name: titleInner, url: imageUrlInner });
-      };
-      img.onerror = (ev) => {
-        // eslint-disable-next-line no-console
-        console.warn("[addMarker] preview image failed to load", { name: titleInner, url: imageUrlInner, ev });
-        img.style.opacity = "0.06";
-        img.style.filter = "grayscale(1)";
-      };
-
-      wrapper.appendChild(img);
-      return { wrapper, img };
-    };
-
-    const previewSize = opts?.previewSize ?? 120;
-    const { wrapper: previewEl, img: previewImg } = createPreview(imageUrl, opts?.title, previewSize);
-
-    // append to map container
-    const mapContainer = (map.getContainer && map.getContainer()) || document.querySelector(".leaflet-container");
-    if (mapContainer && mapContainer.appendChild) {
-      mapContainer.appendChild(previewEl);
-    } else {
-      document.body.appendChild(previewEl);
+  async function addMarker(
+    lat: number,
+    lon: number,
+    imageUrl: string,
+    opts?: {
+      title?: string;
+      openInNewTab?: boolean;
+      previewSize?: number;
     }
+  ) {
+    const map = mapRef.current;
+    if (!map) {
+      console.warn("addMarker: map not ready");
+      return null;
+    }
+    try {
+      const Lmod = await import("leaflet");
+      const L: any = (Lmod as any).default ?? Lmod;
+      const marker = L.marker([lat, lon], {
+        title: opts?.title ?? "Open image",
+        keyboard: true,
+      }).addTo(map);
 
-    // helpers to show/hide/position preview
-    const showPreviewAt = (point: { x: number; y: number }) => {
-      previewEl.style.left = `${Math.round(point.x)}px`;
-      previewEl.style.top = `${Math.round(point.y - 8)}px`;
-      previewEl.style.display = "block";
-      // animate in
-      requestAnimationFrame(() => {
-        previewEl.style.opacity = "1";
-        previewEl.style.transform = "translate(-50%, -105%) scale(1)";
-      });
-    };
-    const hidePreview = () => {
-      previewEl.style.opacity = "0";
-      previewEl.style.transform = "translate(-50%, -105%) scale(0.98)";
-      setTimeout(() => {
-        try { previewEl.style.display = "none"; } catch {}
-      }, 140);
-    };
+      const createPreview = (imageUrlInner: string, titleInner?: string, size = 120) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "map-image-hover-preview";
+        wrapper.style.position = "absolute";
+        wrapper.style.pointerEvents = "none";
+        wrapper.style.zIndex = "10000";
+        wrapper.style.display = "none";
+        wrapper.style.opacity = "0";
+        wrapper.style.transform = "translate(-50%, -105%) scale(0.98)";
+        wrapper.style.transition = "opacity 120ms ease, transform 120ms ease";
 
-    // detect touch devices
-    const isTouch = typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+        const img = document.createElement("img");
+        img.src = imageUrlInner;
+        img.alt = titleInner ?? "preview";
+        img.loading = "lazy";
+        img.style.width = `${size}px`;
+        img.style.height = "auto";
+        img.style.maxHeight = `${Math.round(size * 0.75)}px`;
+        img.style.objectFit = "cover";
+        img.style.borderRadius = "6px";
+        img.style.opacity = "0.3";
+        img.style.display = "block";
+        img.style.pointerEvents = "none";
+        img.style.userSelect = "none";
 
-    // Desktop: show preview on marker mouseover, hide on mouseout
-    if (!isTouch) {
-      const onMouseOver = (ev: any) => {
-        try {
-          const origEvt = ev?.originalEvent;
-          let point;
-          if (origEvt && typeof origEvt.clientX === "number") {
-            const rect = mapContainer.getBoundingClientRect();
-            point = { x: origEvt.clientX - rect.left, y: origEvt.clientY - rect.top };
-          } else {
-            const latlng = (ev?.latlng) ?? marker.getLatLng();
-            const p = map.latLngToContainerPoint(latlng);
-            point = { x: p.x, y: p.y };
-          }
-          // ensure preview remains non-interactive on desktop
-          previewEl.style.pointerEvents = "none";
-          previewImg.style.pointerEvents = "none";
-          showPreviewAt(point);
-        } catch (e) {
-          const center = map.latLngToContainerPoint(map.getCenter());
-          showPreviewAt({ x: center.x, y: center.y });
-        }
-      };
-      const onMouseOut = () => hidePreview();
+        img.onload = () => { /* noop debug */ };
+        img.onerror = () => { img.style.opacity = "0.06"; img.style.filter = "grayscale(1)"; };
 
-      marker.on("mouseover", onMouseOver);
-      marker.on("mouseout", onMouseOut);
-
-      // also show when mouse enters actual icon element (robustness)
-      try {
-        const iconEl = marker.getElement?.();
-        if (iconEl) {
-          iconEl.addEventListener("mouseenter", (ev: MouseEvent) => {
-            const rect = mapContainer.getBoundingClientRect();
-            showPreviewAt({ x: (ev as MouseEvent).clientX - rect.left, y: (ev as MouseEvent).clientY - rect.top });
-          });
-          iconEl.addEventListener("mouseleave", hidePreview);
-        }
-      } catch (e) { /* ignore */ }
-
-      // click on desktop -> open full image (keeps previous behavior)
-      const openFull = () => {
-        if (opts?.openInNewTab === false) window.location.href = imageUrl;
-        else window.open(imageUrl, "_blank", "noopener,noreferrer");
-      };
-      marker.on("click", openFull);
-      marker.on("keypress", (e: any) => {
-        if (e.originalEvent?.key === "Enter") openFull();
-      });
-    } else {
-      // Touch device: marker tap toggles preview visibility; tapping preview opens full image.
-      // Make preview interactive so it can receive taps
-      previewEl.style.pointerEvents = "auto";
-      previewImg.style.pointerEvents = "auto";
-      previewImg.style.cursor = "pointer";
-
-      const openFull = () => {
-        if (opts?.openInNewTab === false) window.location.href = imageUrl;
-        else window.open(imageUrl, "_blank", "noopener,noreferrer");
+        wrapper.appendChild(img);
+        return { wrapper, img };
       };
 
-      // marker click shows preview (and positions it)
-      const onMarkerClickTouch = (ev: any) => {
-        try {
-          const rect = mapContainer.getBoundingClientRect();
-          const origEvt = ev?.originalEvent;
-          let point;
-          if (origEvt && typeof origEvt.clientX === "number") {
-            point = { x: origEvt.clientX - rect.left, y: origEvt.clientY - rect.top };
-          } else {
-            const latlng = (ev?.latlng) ?? marker.getLatLng();
-            const p = map.latLngToContainerPoint(latlng);
-            point = { x: p.x, y: p.y };
-          }
-          // If preview is already visible at same spot, open full image instead of toggling
-          const visible = previewEl.style.display !== "none" && previewEl.style.opacity !== "0";
-          if (visible) {
-            openFull();
-          } else {
+      const previewSize = opts?.previewSize ?? 120;
+      const { wrapper: previewEl, img: previewImg } = createPreview(imageUrl, opts?.title, previewSize);
+
+      const mapContainer = (map.getContainer && map.getContainer()) || document.querySelector(".leaflet-container");
+      if (mapContainer && (mapContainer as HTMLElement).appendChild) {
+        (mapContainer as HTMLElement).appendChild(previewEl);
+      } else {
+        document.body.appendChild(previewEl);
+      }
+
+      const showPreviewAt = (point: { x: number; y: number }) => {
+        previewEl.style.left = `${Math.round(point.x)}px`;
+        previewEl.style.top = `${Math.round(point.y - 8)}px`;
+        previewEl.style.display = "block";
+        requestAnimationFrame(() => {
+          previewEl.style.opacity = "1";
+          previewEl.style.transform = "translate(-50%, -105%) scale(1)";
+        });
+      };
+      const hidePreview = () => {
+        previewEl.style.opacity = "0";
+        previewEl.style.transform = "translate(-50%, -105%) scale(0.98)";
+        setTimeout(() => { try { previewEl.style.display = "none"; } catch {} }, 140);
+      };
+
+      const isTouch = typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+
+      if (!isTouch) {
+        const onMouseOver = (ev: unknown) => {
+          try {
+            const origEvt = (ev as any)?.originalEvent;
+            let point;
+            if (origEvt && typeof origEvt.clientX === "number") {
+              const rect = (mapContainer as HTMLElement).getBoundingClientRect();
+              point = { x: origEvt.clientX - rect.left, y: origEvt.clientY - rect.top };
+            } else {
+              const latlng = (ev as any)?.latlng ?? (marker as any).getLatLng();
+              const p = (map as any).latLngToContainerPoint(latlng);
+              point = { x: p.x, y: p.y };
+            }
+            previewEl.style.pointerEvents = "none";
+            previewImg.style.pointerEvents = "none";
             showPreviewAt(point);
+          } catch {
+            const center = (map as any).latLngToContainerPoint((map as any).getCenter());
+            showPreviewAt({ x: center.x, y: center.y });
           }
-        } catch (e) {
-          // fallback: open preview at center
-          const center = map.latLngToContainerPoint(map.getCenter());
-          showPreviewAt({ x: center.x, y: center.y });
-        }
-      };
+        };
+        const onMouseOut = () => hidePreview();
 
-      // preview click opens full image
-      const onPreviewClick = (ev: MouseEvent) => {
-        ev.stopPropagation();
-        openFull();
-      };
+        marker.on("mouseover", onMouseOver);
+        marker.on("mouseout", onMouseOut);
 
-      marker.on("click", onMarkerClickTouch);
-      previewEl.addEventListener("click", onPreviewClick, { passive: true });
+        try {
+          const iconEl = (marker as any).getElement?.();
+          if (iconEl) {
+            iconEl.addEventListener("mouseenter", (ev: MouseEvent) => {
+              const rect = (mapContainer as HTMLElement).getBoundingClientRect();
+              showPreviewAt({ x: ev.clientX - rect.left, y: ev.clientY - rect.top });
+            });
+            iconEl.addEventListener("mouseleave", hidePreview);
+          }
+        } catch { /* ignore */ }
 
-      // Hide preview when tapping anywhere else on the map
-      const onMapClickHide = () => hidePreview();
-      map.on("click", onMapClickHide);
+        const openFull = () => {
+          if (opts?.openInNewTab === false) window.location.href = imageUrl;
+          else window.open(imageUrl, "_blank", "noopener,noreferrer");
+        };
+        marker.on("click", openFull);
+        marker.on("keypress", (e: unknown) => { if ((e as any)?.originalEvent?.key === "Enter") openFull(); });
+      } else {
+        previewEl.style.pointerEvents = "auto";
+        previewImg.style.pointerEvents = "auto";
+        previewImg.style.cursor = "pointer";
+        const openFull = () => {
+          if (opts?.openInNewTab === false) window.location.href = imageUrl;
+          else window.open(imageUrl, "_blank", "noopener,noreferrer");
+        };
+        const onMarkerClickTouch = (ev: unknown) => {
+          try {
+            const rect = (mapContainer as HTMLElement).getBoundingClientRect();
+            const origEvt = (ev as any)?.originalEvent;
+            let point;
+            if (origEvt && typeof origEvt.clientX === "number") {
+              point = { x: origEvt.clientX - rect.left, y: origEvt.clientY - rect.top };
+            } else {
+              const latlng = (ev as any)?.latlng ?? (marker as any).getLatLng();
+              const p = (map as any).latLngToContainerPoint(latlng);
+              point = { x: p.x, y: p.y };
+            }
+            const visible = previewEl.style.display !== "none" && previewEl.style.opacity !== "0";
+            if (visible) openFull();
+            else showPreviewAt(point);
+          } catch {
+            const center = (map as any).latLngToContainerPoint((map as any).getCenter());
+            showPreviewAt({ x: center.x, y: center.y });
+          }
+        };
+        const onPreviewClick = (ev: MouseEvent) => { ev.stopPropagation(); openFull(); };
 
-      // store cleanup references on marker for later removal
-      (marker as any)._mobilePreviewCleanup = () => {
-        try { previewEl.removeEventListener("click", onPreviewClick); } catch {}
-        try { map.off("click", onMapClickHide); } catch {}
-      };
+        marker.on("click", onMarkerClickTouch);
+        previewEl.addEventListener("click", onPreviewClick, { passive: true });
+
+        const onMapClickHide = () => hidePreview();
+        (map as any).on("click", onMapClickHide);
+        (marker as any)._mobilePreviewCleanup = () => {
+          try { previewEl.removeEventListener("click", onPreviewClick); } catch {}
+          try { (map as any).off("click", onMapClickHide); } catch {}
+        };
+      }
+
+      (marker as any)._imagePreviewEl = previewEl;
+      return marker;
+    } catch (e) {
+      console.warn("addMarker failed", e);
+      return null;
     }
-
-    // store preview element for later cleanup when removing marker
-    (marker as any)._imagePreviewEl = previewEl;
-
-    return marker;
-  } catch (e) {
-    console.warn("addMarker failed", e);
-    return null;
   }
-}
 
-
-
-  // ---- demo helper used previously (kept small) ----
   async function addDemoMarkerAtCenter() {
     if (!combinedStats?.bounds) return;
     const [minLon, minLat, maxLon, maxLat] = combinedStats.bounds;
@@ -580,7 +470,7 @@ async function addMarker(
     await addMarker(centerLat, centerLon, "https://www.cnn.com", { title: "Demo link"});
   }
 
-  // ---- handle files parsing (GPX/KML) ----
+  // ---- files parsing (GPX/KML) ----
   const handleFiles = useCallback(async (filesOrList: FileList | File[] | null) => {
     setError(null);
     if (!filesOrList) return;
@@ -609,7 +499,6 @@ async function addMarker(
           else throw new Error(`Unsupported file type for ${f.name}`);
         }
 
-        // convert <wpt> to points if needed
         if (!gjson.features || gjson.features.length === 0) {
           const wpts = Array.from(xml.getElementsByTagName("wpt") || []);
           if (wpts.length > 0) {
@@ -663,7 +552,6 @@ async function addMarker(
         }
       }
 
-      // update state
       setDayTracks(parsedDays);
       setFileNameList(names);
       const combined = mergeDays(parsedDays);
@@ -671,20 +559,19 @@ async function addMarker(
       const stats = computeStats(combined);
       setCombinedStats({ distance_m: stats.distance_m, elevation: stats.elevation, bounds: stats.bounds });
 
-      // fit map if available
       if (stats.bounds) {
         const [minX, minY, maxX, maxY] = stats.bounds;
         const b: [[number, number], [number, number]] = [[minY, minX], [maxY, maxX]];
         const map = mapRef.current;
         if (map) {
           try {
-            map.invalidateSize();
-            map.fitBounds(b as any, { padding: [20, 20], maxZoom: 15 });
+            (map as any).invalidateSize();
+            (map as any).fitBounds(b as any, { padding: [20, 20], maxZoom: 15 });
             forceTileRedraw(map);
           } catch {
             const waited = await waitForMap(4000, 200);
             if (waited) {
-              try { waited.setView([(b[0][0] + b[1][0]) / 2, (b[0][1] + b[1][1]) / 2], 12); forceTileRedraw(waited); } catch {}
+              try { (waited as any).setView([(b[0][0] + b[1][0]) / 2, (b[0][1] + b[1][1]) / 2], 12); forceTileRedraw(waited); } catch {}
             }
           }
         }
@@ -709,7 +596,6 @@ async function addMarker(
     handleFiles(e.dataTransfer.files);
   }, [handleFiles]);
 
-  // open native picker
   const openNativePicker = useCallback(async () => {
     try {
       if ((window as any).showOpenFilePicker) {
@@ -747,7 +633,7 @@ async function addMarker(
     clearImageMarkers();
   }, [imagePreviews]);
 
-  // saveAll - delegate to saveAllWithStorage
+  // saveAll
   const saveAll = useCallback(async () => {
     setState("saving"); setError(null);
     try {
@@ -778,241 +664,189 @@ async function addMarker(
   // ---- loadHike (registered with parent) ----
   const [selectedHikeId, setSelectedHikeId] = useState<string | null>(null);
   const loadHike = useCallback(async (hikeId: string) => {
-  try {
-    console.debug("[loadHike] start", { hikeId });
-    setState("parsing");
-    setError(null);
-    setSelectedHikeId(hikeId);
+    try {
+      setState("parsing");
+      setError(null);
+      setSelectedHikeId(hikeId);
 
-    // clear any existing image markers right away
-    clearImageMarkers();
-    console.debug("[loadHike] cleared existing markers");
+      clearImageMarkers();
 
-    const user = getAuth().currentUser;
-    if (!user) throw new Error("Not signed in");
+      const user = getAuth().currentUser;
+      if (!user) throw new Error("Not signed in");
 
-    const docRef = doc(db, "users", user.uid, "hikes", hikeId);
-    const docSnap = await getDoc(docRef);
-    if (!docSnap.exists()) throw new Error("Hike not found");
+      const docRef = doc(db, "users", user.uid, "hikes", hikeId);
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) throw new Error("Hike not found");
 
-    const data: any = docSnap.data();
-    console.debug("[loadHike] loaded hike doc", { id: hikeId, title: data?.title });
+      const data: unknown = docSnap.data();
 
-    setTitle(data.title || "");
-    setDescriptionMd(data.descriptionMd || "");
+      setTitle((data as any)?.title ?? "");
+      setDescriptionMd((data as any)?.descriptionMd ?? "");
 
-    let loadedDayTracks: DayTrack[] = [];
-    let loadedCombined: FeatureCollection<Geometry> | null = null;
+      const loadedDayTracks: DayTrack[] = [];
+      let loadedCombined: FeatureCollection<Geometry> | null = null;
 
-    // load per-day geojsons if present
-    if (Array.isArray(data.days) && data.days.length > 0) {
-      const storage = getStorage();
-      for (let i = 0; i < data.days.length; i++) {
-        const d = data.days[i];
-        let geojson: FeatureCollection<Geometry> | null = null;
+      if (Array.isArray((data as any)?.days) && (data as any).days.length > 0) {
+        const storage = getStorage();
+        for (let i = 0; i < (data as any).days.length; i++) {
+          const d = (data as any).days[i];
+          let geojson: FeatureCollection<Geometry> | null = null;
+          try {
+            const possibleUrl = d.geojsonUrl ?? d.geojson ?? null;
+            if (possibleUrl && typeof possibleUrl === "string") {
+              if (possibleUrl.startsWith("gs://") || possibleUrl.includes("/o/")) {
+                try {
+                  const ref = storageRef(storage, possibleUrl.replace(/^gs:\/\//, ""));
+                  const dl = await getDownloadURL(ref);
+                  const resp = await fetch(dl);
+                  geojson = await resp.json();
+                } catch (e) {
+                  console.warn("[loadHike] failed to resolve storage path for day geojson:", e);
+                }
+              } else {
+                try {
+                  const resp = await fetch(possibleUrl);
+                  geojson = await resp.json();
+                } catch (e) {
+                  console.warn("[loadHike] failed to fetch day geojson url:", e);
+                }
+              }
+            }
+          } catch (e) {
+            console.warn("[loadHike] error fetching per-day geojson:", e);
+          }
+
+          const fc = geojson ?? { type: "FeatureCollection", features: [] } as FeatureCollection<Geometry>;
+          const stats = computeStats(fc);
+          loadedDayTracks.push({
+            id: d.id ?? `saved-${hikeId}-${i}`,
+            name: d.name ?? `Day ${i+1}`,
+            geojson: fc,
+            stats: d.stats ?? stats,
+            color: d.color ?? PALETTE[i % PALETTE.length],
+            visible: typeof d.visible === "boolean" ? d.visible : true,
+            originalFile: undefined,
+          });
+        }
+      }
+
+      if ((data as any)?.combinedUrl && typeof (data as any).combinedUrl === "string") {
         try {
-          const possibleUrl = d.geojsonUrl ?? d.geojson ?? null;
-          if (possibleUrl && typeof possibleUrl === "string") {
-            console.debug("[loadHike] resolving day geojson url", { idx: i, possibleUrl });
-            if (possibleUrl.startsWith("gs://") || possibleUrl.includes("/o/")) {
-              try {
-                const ref = storageRef(storage, possibleUrl.replace(/^gs:\/\//, ""));
+          const combinedUrl = (data as any).combinedUrl;
+          const storage = getStorage();
+          if (combinedUrl.startsWith("gs://") || combinedUrl.includes("/o/")) {
+            const ref = storageRef(storage, combinedUrl.replace(/^gs:\/\//, ""));
+            const dl = await getDownloadURL(ref);
+            const resp = await fetch(dl);
+            loadedCombined = await resp.json();
+          } else {
+            const resp = await fetch(combinedUrl);
+            loadedCombined = await resp.json();
+          }
+        } catch (e) {
+          console.warn("[loadHike] failed to load combinedGeojsonUrl:", e);
+        }
+      }
+
+      if ((!loadedDayTracks || loadedDayTracks.length === 0) && loadedCombined) {
+        const features = loadedCombined.features || [];
+        for (let i = 0; i < features.length; i++) {
+          const feat = features[i];
+          const singleFc: FeatureCollection<Geometry> = { type: "FeatureCollection", features: [feat] };
+          const stats = computeStats(singleFc);
+          loadedDayTracks.push({
+            id: `${hikeId}-feat-${i}`,
+            name: `Part ${i+1}`,
+            geojson: singleFc,
+            stats: { distance_m: stats.distance_m, elevation: stats.elevation, bounds: stats.bounds },
+            color: PALETTE[i % PALETTE.length],
+            visible: true,
+            originalFile: undefined,
+          });
+        }
+      }
+
+      setDayTracks(loadedDayTracks);
+      setCombinedGeojson(loadedCombined ?? mergeDays(loadedDayTracks));
+      setCombinedStats(loadedCombined ? computeStats(loadedCombined) : computeStats(mergeDays(loadedDayTracks)));
+
+      // images: collect preview urls
+      const previews: string[] = [];
+      try {
+        const storage = getStorage();
+        if (Array.isArray((data as any).images) && (data as any).images.length) {
+          for (const im of (data as any).images as Array<Record<string, unknown>>) {
+            if (!im) continue;
+            const maybeUrl = (im as any).url ?? (im as any).path ?? null;
+            if (!maybeUrl) continue;
+            try {
+              if (typeof maybeUrl === "string" && (maybeUrl.startsWith("gs://") || maybeUrl.includes("/o/"))) {
+                const ref = storageRef(storage, (maybeUrl as string).replace(/^gs:\/\//, ""));
                 const dl = await getDownloadURL(ref);
-                console.debug("[loadHike] got downloadURL for day geojson", { dl });
-                const resp = await fetch(dl);
-                geojson = await resp.json();
-              } catch (e) {
-                console.warn("[loadHike] failed to resolve storage path for day geojson:", e);
+                previews.push(dl);
+              } else if (typeof maybeUrl === "string") {
+                previews.push(maybeUrl);
               }
-            } else {
-              try {
-                console.debug("[loadHike] fetching day geojson from external url", possibleUrl);
-                const resp = await fetch(possibleUrl);
-                geojson = await resp.json();
-              } catch (e) {
-                console.warn("[loadHike] failed to fetch day geojson url:", e);
+            } catch (e) {
+              console.warn("[loadHike] image fetch failed for", maybeUrl, e);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("[loadHike] image preview load error", e);
+      }
+
+      imagePreviews.forEach(u => { try { URL.revokeObjectURL(u); } catch {} });
+      setImagePreviews(previews);
+      setImageFiles([]);
+
+      setTimeout(() => {
+        const map = mapRef.current;
+        try {
+          const ext = getCombinedExtentFromDayTracks(loadedDayTracks);
+          if (map && ext) {
+            (map as any).fitBounds([ext.sw, ext.ne], { padding: [24, 24], maxZoom: 16 });
+            forceTileRedraw(map);
+          }
+        } catch (e) { console.warn("[loadHike] fit after load failed", e); }
+      }, 200);
+
+      // EXIF GPS markers (best-effort)
+      (async () => {
+        try {
+          if (previews.length === 0) return;
+          const ext = getCombinedExtentFromDayTracks(loadedDayTracks);
+          if (!ext || !ext.bbox) return;
+          for (let i = 0; i < previews.length; i++) {
+            const url = previews[i];
+            try {
+              const gps = await extractExifFromUrl(url);
+              if (!gps) continue;
+              const [minLon, minLat, maxLon, maxLat] = ext.bbox;
+              if (gps.lon >= minLon && gps.lon <= maxLon && gps.lat >= minLat && gps.lat <= maxLat) {
+                const marker = await addMarker(gps.lat, gps.lon, url, { title: `Photo ${i+1}` });
+                if (marker) markersRef.current.push(marker);
               }
+            } catch (e) {
+              console.warn("[loadHike] per-image EXIF/marker error", e, { index: i, url });
             }
           }
         } catch (e) {
-          console.warn("[loadHike] error fetching per-day geojson:", e);
+          console.warn("[loadHike] image EXIF->marker step failed", e);
         }
+      })();
 
-        const fc = geojson ?? { type: "FeatureCollection", features: [] } as FeatureCollection<Geometry>;
-        const stats = computeStats(fc);
-        loadedDayTracks.push({
-          id: d.id ?? `saved-${hikeId}-${i}`,
-          name: d.name ?? `Day ${i+1}`,
-          geojson: fc,
-          stats: d.stats ?? stats,
-          color: d.color ?? PALETTE[i % PALETTE.length],
-          visible: typeof d.visible === "boolean" ? d.visible : true,
-          originalFile: undefined,
-        });
-        console.debug("[loadHike] added dayTrack", { idx: i, id: loadedDayTracks[loadedDayTracks.length - 1].id, stats });
-      }
+      setState("preview");
+      setToastMsg("Hike loaded");
+      setToastShow(true);
+    } catch (err) {
+      console.error("loadHike error", err);
+      setError(err instanceof Error ? err.message : String(err));
+      setState("error");
+      setToastMsg(`Failed to load hike: ${err instanceof Error ? err.message : String(err)}`);
+      setToastShow(true);
     }
-
-    // load combined geojson if present
-    if (data.combinedUrl && typeof data.combinedUrl === "string") {
-      try {
-        const combinedUrl = data.combinedUrl;
-        const storage = getStorage();
-        console.debug("[loadHike] resolving combinedUrl", { combinedUrl });
-        if (combinedUrl.startsWith("gs://") || combinedUrl.includes("/o/")) {
-          const ref = storageRef(storage, combinedUrl.replace(/^gs:\/\//, ""));
-          const dl = await getDownloadURL(ref);
-          const resp = await fetch(dl);
-          loadedCombined = await resp.json();
-        } else {
-          const resp = await fetch(combinedUrl);
-          loadedCombined = await resp.json();
-        }
-        console.debug("[loadHike] loaded combined geojson", { loadedCombinedFeatures: loadedCombined?.features?.length ?? 0 });
-      } catch (e) {
-        console.warn("[loadHike] failed to load combinedGeojsonUrl:", e);
-      }
-    }
-
-    // if no per-day tracks, derive from combined
-    if ((!loadedDayTracks || loadedDayTracks.length === 0) && loadedCombined) {
-      const features = loadedCombined.features || [];
-      for (let i = 0; i < features.length; i++) {
-        const feat = features[i];
-        const singleFc: FeatureCollection<Geometry> = { type: "FeatureCollection", features: [feat] };
-        const stats = computeStats(singleFc);
-        loadedDayTracks.push({
-          id: `${hikeId}-feat-${i}`,
-          name: `Part ${i+1}`,
-          geojson: singleFc,
-          stats: { distance_m: stats.distance_m, elevation: stats.elevation, bounds: stats.bounds },
-          color: PALETTE[i % PALETTE.length],
-          visible: true,
-          originalFile: undefined,
-        });
-        console.debug("[loadHike] derived dayTrack from combined", { idx: i, stats });
-      }
-    }
-
-    setDayTracks(loadedDayTracks);
-    setCombinedGeojson(loadedCombined ?? mergeDays(loadedDayTracks));
-    setCombinedStats(loadedCombined ? computeStats(loadedCombined) : computeStats(mergeDays(loadedDayTracks)));
-    console.debug("[loadHike] dayTracks & combinedGeojson set", {
-      dayTracksCount: loadedDayTracks.length,
-      combinedFeatures: (loadedCombined ?? mergeDays(loadedDayTracks)).features.length,
-    });
-
-    // images: collect preview urls (resolve gs:// to downloadURL)
-    const previews: string[] = [];
-    try {
-      const storage = getStorage();
-      if (Array.isArray(data.images) && data.images.length) {
-        for (const im of data.images) {
-          if (!im) continue;
-          const maybeUrl = im.url ?? im.path ?? null;
-          if (!maybeUrl) continue;
-          try {
-            if (maybeUrl.startsWith("gs://") || maybeUrl.includes("/o/")) {
-              const ref = storageRef(storage, maybeUrl.replace(/^gs:\/\//, ""));
-              const dl = await getDownloadURL(ref);
-              previews.push(dl);
-              console.debug("[loadHike] resolved image storage path to downloadURL", { maybeUrl, dl });
-            } else {
-              previews.push(maybeUrl);
-              console.debug("[loadHike] added image external url", { maybeUrl });
-            }
-          } catch (e) {
-            console.warn("[loadHike] image fetch failed for", maybeUrl, e);
-          }
-        }
-      }
-    } catch (e) {
-      console.warn("[loadHike] image preview load error", e);
-    }
-
-    // clear old object URLs & set new previews
-    imagePreviews.forEach(u => { try { URL.revokeObjectURL(u); } catch {} });
-    setImagePreviews(previews);
-    setImageFiles([]);
-    console.debug("[loadHike] image previews set", { previewCount: previews.length });
-
-    // fit map to extent
-    setTimeout(() => {
-      const map = mapRef.current;
-      try {
-        const ext = getCombinedExtentFromDayTracks(loadedDayTracks);
-        console.debug("[loadHike] fitting map to extent", { ext });
-        if (map && ext) {
-          (map as any).fitBounds([ext.sw, ext.ne], { padding: [24, 24], maxZoom: 16 });
-          forceTileRedraw(map);
-        }
-      } catch (e) { console.warn("[loadHike] fit after load failed", e); }
-    }, 200);
-
-    // try to extract EXIF GPS from image urls (best-effort) and add markers if inside extent
-    (async () => {
-      try {
-        if (previews.length === 0) {
-          console.debug("[loadHike] no image previews to process for EXIF");
-          return;
-        }
-
-        const ext = getCombinedExtentFromDayTracks(loadedDayTracks);
-        if (!ext || !ext.bbox) {
-          console.debug("[loadHike] no extent available; skipping image EXIF marker placement");
-          return;
-        }
-        console.debug("[loadHike] beginning EXIF extraction for images", { previewCount: previews.length, bbox: ext.bbox });
-
-        // process sequentially to avoid many concurrent requests
-        for (let i = 0; i < previews.length; i++) {
-          const url = previews[i];
-          try {
-            console.debug("[loadHike] extracting exif for image", { index: i, url });
-            // direct client-side extraction (no proxy)
-            const gps = await extractExifFromUrl(url);
-            console.debug("[loadHike] extractExifFromUrl result", { index: i, url, gps });
-            if (!gps) {
-              console.debug("[loadHike] no GPS found in EXIF for image", { index: i, url });
-              continue;
-            }
-
-            const [minLon, minLat, maxLon, maxLat] = ext.bbox;
-            console.debug("[loadHike] comparing gps to bbox", { index: i, gps, bbox: ext.bbox });
-            if (gps.lon >= minLon && gps.lon <= maxLon && gps.lat >= minLat && gps.lat <= maxLat) {
-              const marker = await addMarker(gps.lat, gps.lon, url, { title: `Photo ${i+1}` });
-              console.debug("[loadHike] addMarker returned", { index: i, marker });
-              if (marker) markersRef.current.push(marker);
-              else console.warn("[loadHike] addMarker returned falsy marker", { index: i, url });
-            } else {
-              console.debug("[loadHike] gps outside bbox; skipping marker", { index: i, gps, bbox: ext.bbox });
-            }
-          } catch (e) {
-            console.warn("[loadHike] per-image EXIF/marker error", e, { index: i, url });
-          }
-        }
-
-        console.debug("[loadHike] finished processing image EXIF for markers", { markersCount: markersRef.current.length });
-      } catch (e) {
-        console.warn("[loadHike] image EXIF->marker step failed", e);
-      }
-    })();
-
-    setState("preview");
-    setToastMsg("Hike loaded");
-    setToastShow(true);
-    console.debug("[loadHike] completed successfully", { hikeId });
-  } catch (err) {
-    console.error("loadHike error", err);
-    setError(err instanceof Error ? err.message : String(err));
-    setState("error");
-    setToastMsg(`Failed to load hike: ${err instanceof Error ? err.message : String(err)}`);
-    setToastShow(true);
-  }
-}, [imagePreviews]);
-
-
-
+  }, [imagePreviews]);
 
   // register loadHike with parent
   useEffect(() => {
@@ -1022,12 +856,11 @@ async function addMarker(
     }
   }, [registerLoad, loadHike]);
 
-  // helper used by multiple places
   function getCombinedExtentFromDayTracks(days: DayTrack[] | null) {
     if (!days || days.length === 0) return null;
-    const combined = { type: "FeatureCollection", features: days.flatMap(d => d.geojson.features) } as FeatureCollection;
+    const combined = { type: "FeatureCollection", features: days.flatMap(d => d.geojson.features) } as FeatureCollection<Geometry>;
     try {
-      const bbox = turf.bbox(combined); // [minLon, minLat, maxLon, maxLat]
+      const bbox = turf.bbox(combined);
       const [minLon, minLat, maxLon, maxLat] = bbox;
       const sw = [minLat, minLon] as [number, number];
       const ne = [maxLat, maxLon] as [number, number];
@@ -1036,34 +869,27 @@ async function addMarker(
     } catch { return null; }
   }
 
-  // Map creation handler (used by MapSetter)
-  const onMapCreated = useCallback((mapInstance: any) => {
+  const onMapCreated = useCallback((mapInstance: LeafletMap) => {
     mapRef.current = mapInstance;
     mapReadyRef.current = true;
-    // expose for debug
-    // @ts-ignore
-    window._fortAmazingMap = mapInstance;
+    // @ts-ignore dev helper
+    (window as any)._fortAmazingMap = mapInstance;
     setTimeout(() => {
-      try { mapInstance.invalidateSize(); } catch {}
+      try { (mapInstance as any).invalidateSize(); } catch {}
       if (combinedGeojson) {
         try {
           const bbox = turf.bbox(combinedGeojson);
           const b: [[number, number], [number, number]] = [[bbox[1], bbox[0]], [bbox[3], bbox[2]]];
-          mapInstance.fitBounds(b as any, { padding: [20, 20], maxZoom: 15 });
+          (mapInstance as any).fitBounds(b as any, { padding: [20, 20], maxZoom: 15 });
           forceTileRedraw(mapInstance);
         } catch (e) { console.warn("fitBounds in onMapCreated failed", e); }
       }
     }, 120);
   }, [combinedGeojson]);
 
-  const isBlobLike = (v: any): v is Blob =>
-  typeof v === "object" &&
-  v !== null &&
-  typeof (v as any).arrayBuffer === "function" &&
-  typeof (v as any).size === "number" &&
-  typeof (v as any).type === "string";
+  const isBlobLike = (v: unknown): v is Blob =>
+    typeof v === "object" && v !== null && typeof (v as any).arrayBuffer === "function" && typeof (v as any).size === "number" && typeof (v as any).type === "string";
 
-  // small effect to log mapRef for debug
   useEffect(() => {
     const id = setInterval(() => {
       if (mapRef.current) {
@@ -1075,123 +901,87 @@ async function addMarker(
     return () => clearInterval(id);
   }, []);
 
-  // image input change handler (local preview) — UPDATED to match TrackDetail behavior:
-    const onImageInputChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-  if (!e.target.files) return;
-  const incoming = Array.from(e.target.files);
+  // image input change handler
+  const onImageInputChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const incoming = Array.from(e.target.files);
 
-  // clear existing markers for a fresh start
-  clearImageMarkers();
+    clearImageMarkers();
 
-  // We'll build two arrays: filesToUpload and previewUrls
-  const finalFiles: File[] = [];
-  const previewUrls: string[] = [];
+    const finalFiles: File[] = [];
+    const previewUrls: string[] = [];
 
-  // compute current route extent for containment checks
-  const extent = getCombinedExtentFromDayTracks(dayTracks); // may be null
+    const extent = getCombinedExtentFromDayTracks(dayTracks);
 
-  for (let idx = 0; idx < incoming.length; idx++) {
-    const f = incoming[idx];
-    try {
-      // 1) extract EXIF from original file BEFORE any conversion (best-effort)
-      let gps: LatLon = null;
+    for (let idx = 0; idx < incoming.length; idx++) {
+      const f = incoming[idx];
       try {
-        if (typeof extractExifFromFile === "function") {
-          gps = await extractExifFromFile(f);
-        } else {
+        let gps: LatLon = null;
+        try {
+          if (typeof extractExifFromFile === "function") {
+            gps = await extractExifFromFile(f);
+          } else gps = null;
+          if (gps && extent && extent.bbox) {
+            const [minLon, minLat, maxLon, maxLat] = extent.bbox as [number, number, number, number];
+            if (gps.lon >= minLon && gps.lon <= maxLon && gps.lat >= minLat && gps.lat <= maxLat) {
+              try {
+                const markerPreviewUrl = URL.createObjectURL(f);
+                const marker = await addMarker(gps.lat, gps.lon, markerPreviewUrl, { title: f.name, previewSize: 140 });
+                if (marker) markersRef.current.push(marker);
+                previewUrls.push(markerPreviewUrl);
+              } catch (e) {
+                console.warn("[onImageInputChange] failed to add marker from extracted EXIF:", e);
+              }
+            }
+          }
+        } catch (exifErr) {
+          console.warn("[onImageInputChange] extractExifFromFile failed for", f.name, exifErr);
           gps = null;
         }
-        console.debug("[onImageInputChange] extracted gps from original", { name: f.name, gps });
-        if (gps && extent && extent.bbox) {
-          const [minLon, minLat, maxLon, maxLat] = extent.bbox as [number, number, number, number];
-          if (gps.lon >= minLon && gps.lon <= maxLon && gps.lat >= minLat && gps.lat <= maxLat) {
-            // show a quick marker from the original file so the user sees it immediately
-            try {
-              const markerPreviewUrl = URL.createObjectURL(f);
-              const marker = await addMarker(gps.lat, gps.lon, markerPreviewUrl, { title: f.name, previewSize: 140 });
-              if (marker) markersRef.current.push(marker);
-              // NOTE: we don't revoke markerPreviewUrl here because marker preview may use it;
-              // push marker preview into previews so user sees something immediately
-              previewUrls.push(markerPreviewUrl);
-            } catch (e) {
-              console.warn("[onImageInputChange] failed to add marker from extracted EXIF:", e);
-            }
-          }
-        }
-      } catch (exifErr) {
-        // non-fatal: extraction may fail for some images
-        console.warn("[onImageInputChange] extractExifFromFile failed for", f.name, exifErr);
-        gps = null;
-      }
 
-      // 2) convert HEIC -> JPEG if needed, else keep original
-      const ext = (f.name.split(".").pop() || "").toLowerCase();
-      if (ext === "heic" || ext === "heif") {
-        try {
-          // use converter directly (returns file/blob or convert result)
-          const convRes: any = await convertHeicFile(f, { type: "image/jpeg", quality: 0.92 });
-          const out = convRes?.file ?? convRes;
-          let convertedBlob: Blob;
-          if (isBlobLike(out) || out instanceof File) {
-            convertedBlob = out as Blob;
-          } else {
-            throw new Error("convertHeicFile returned unsupported value");
-          }
-
-          // insert GPS EXIF into converted JPEG (if we have gps)
-          let patchedBlob: Blob = convertedBlob;
-          if (gps && typeof gps.lat === "number" && typeof gps.lon === "number" && typeof insertGpsExifIntoJpeg === "function") {
-            try {
-              patchedBlob = await insertGpsExifIntoJpeg(convertedBlob, gps);
-            } catch (e) {
-              console.warn("[onImageInputChange] insertGpsExifIntoJpeg failed", e);
-            }
-          }
-
-          const filenameBase = (f.name || "image").replace(/\.[^.]+$/, "");
-          const finalFile =
-            patchedBlob instanceof File
-              ? patchedBlob
-              : new File([patchedBlob], `${filenameBase}.jpg`, { type: "image/jpeg" });
-
-          finalFiles.push(finalFile);
-          try { previewUrls.push(URL.createObjectURL(finalFile)); } catch { previewUrls.push(""); }
-        } catch (convErr) {
-          console.warn(
-            "[onImageInputChange] HEIC conversion or EXIF insert failed, falling back to original",
-            convErr
-          );
-          finalFiles.push(f);
+        const ext = (f.name.split(".").pop() || "").toLowerCase();
+        if (ext === "heic" || ext === "heif") {
           try {
-            previewUrls.push(URL.createObjectURL(f));
-          } catch {
-            previewUrls.push("");
+            const convRes: any = await convertHeicFile(f, { type: "image/jpeg", quality: 0.92 });
+            const out = convRes?.file ?? convRes;
+            if (!out) throw new Error(convRes?.reason ?? "Conversion returned no file");
+            const convertedBlob = isBlobLike(out) || out instanceof File ? (out as Blob) : null;
+            if (!convertedBlob) throw new Error("convertHeicFile returned unsupported value");
+
+            let patchedBlob: Blob = convertedBlob;
+            if (gps && typeof gps.lat === "number" && typeof gps.lon === "number" && typeof insertGpsExifIntoJpeg === "function") {
+              try {
+                patchedBlob = await insertGpsExifIntoJpeg(convertedBlob, gps);
+              } catch (e) {
+                console.warn("[onImageInputChange] insertGpsExifIntoJpeg failed", e);
+              }
+            }
+
+            const filenameBase = (f.name || "image").replace(/\.[^.]+$/, "");
+            const finalFile = patchedBlob instanceof File ? patchedBlob : new File([patchedBlob], `${filenameBase}.jpg`, { type: "image/jpeg" });
+            finalFiles.push(finalFile);
+            try { previewUrls.push(URL.createObjectURL(finalFile)); } catch { previewUrls.push(""); }
+          } catch (convErr) {
+            console.warn("[onImageInputChange] HEIC conversion or EXIF insert failed, falling back to original", convErr);
+            finalFiles.push(f);
+            try { previewUrls.push(URL.createObjectURL(f)); } catch { previewUrls.push(""); }
           }
+        } else {
+          finalFiles.push(f);
+          try { previewUrls.push(URL.createObjectURL(f)); } catch { previewUrls.push(""); }
         }
-      } else {
-        // not HEIC — keep as-is (may already contain EXIF)
-        finalFiles.push(f);
-        try { previewUrls.push(URL.createObjectURL(f)); } catch { previewUrls.push(""); }
+      } catch (err) {
+        console.warn("[onImageInputChange] per-file error", err);
       }
-    } catch (err) {
-      console.warn("[onImageInputChange] per-file error", err);
     }
-  }
 
-  // revoke previous previews
-  imagePreviews.forEach(u => { try { URL.revokeObjectURL(u); } catch {} });
+    imagePreviews.forEach(u => { try { URL.revokeObjectURL(u); } catch {} });
 
-  // set states
-  setImageFiles(finalFiles);
-  setImagePreviews(previewUrls);
+    setImageFiles(finalFiles);
+    setImagePreviews(previewUrls);
+    e.target.value = "";
+  }, [imagePreviews, dayTracks]);
 
-  // clear native input to allow re-selecting same file
-  e.target.value = "";
-}, [imagePreviews, dayTracks]);
-
-
-
-  // image modal handlers
   const openModalAt = useCallback((idx: number) => {
     setModalIndex(idx);
     setModalOpen(true);
@@ -1205,7 +995,6 @@ async function addMarker(
     <div style={{ display: "flex", gap: 20 }}>
       <Toast message={toastMsg} show={toastShow} onClose={() => setToastShow(false)} />
 
-      {/* left: controls */}
       <div
         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
         onDrop={onDrop}
@@ -1232,10 +1021,7 @@ async function addMarker(
         />
 
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-          <ClientFileInput
-            onFiles={(filesOrList) => { handleFiles(filesOrList); }}
-            buttonLabel="Choose GPX files"
-          />
+          <ClientFileInput onFiles={(filesOrList) => { handleFiles(filesOrList); }} buttonLabel="Choose GPX files" />
           <button
             type="button"
             onClick={() => {
@@ -1263,9 +1049,9 @@ async function addMarker(
                 <li key={d.id} style={{ marginBottom: 6 }}>
                   <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <input type="checkbox" checked={d.visible} onChange={() => toggleDayVisible(d.id)} />
-                    <span style={{ width: 12, height: 12, background: d.color, display: "inline-block", borderRadius: 3 }} />
+                    <span style={{ width: 12, height: 12, background: d.color || "#3388ff", display: "inline-block", borderRadius: 3 }} />
                     <span style={{ marginLeft: 6 }}>{`Day ${idx+1}: ${d.name}`}</span>
-                    <small style={{ marginLeft: "auto", color: "#666" }}>{(d.stats.distance_m/1000).toFixed(2)} km</small>
+                    <small style={{ marginLeft: "auto", color: "#666" }}>{(d.stats?.distance_m ?? 0 / 1000).toFixed(2)} km</small>
                   </label>
                 </li>
               ))}
@@ -1280,13 +1066,7 @@ async function addMarker(
 
         <div style={{ marginTop: 8 }}>
           <label style={{ display: "block", fontWeight: 600 }}>Description (Markdown)</label>
-          <MarkdownEditor
-            value={descriptionMd}
-            onChange={setDescriptionMd}
-            editable={true}
-            defaultLayout="split"
-            rows={8}
-          />
+          <MarkdownEditor value={descriptionMd} onChange={setDescriptionMd} editable={true} defaultLayout="split" rows={8} />
         </div>
 
         <div style={{ marginTop: 8 }}>
@@ -1311,7 +1091,6 @@ async function addMarker(
         {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
       </div>
 
-      {/* right: map + preview */}
       <div style={{ flex: 1 }}>
         <div style={{ marginBottom: 8, display: "flex", gap: 8, alignItems: "center" }}>
           <strong>Preview</strong>
@@ -1336,7 +1115,7 @@ async function addMarker(
           {!RL ? (
             <div style={{ padding: 20 }}>Loading map…</div>
           ) : (
-            // @ts-ignore
+            // @ts-ignore react-leaflet types are dynamic here
             <RL.MapContainer
               whenCreated={(map: any) => { onMapCreated(map); }}
               style={{ height: "100%", width: "100%", position: "absolute", left: 0, top: 0 }}
@@ -1360,14 +1139,13 @@ async function addMarker(
                   data={d.geojson}
                   style={() => ({ color: d.color, weight: 5, opacity: 1.0 })}
                   // @ts-ignore
-                  pointToLayer={(_feature: any, latlng: any) => RL.circleMarker(latlng, { radius: 5, fill: true, fillOpacity: 0.9, color: d.color, weight: 1, opacity: 0.95 })}
+                  pointToLayer={(_feature: unknown, latlng: unknown) => (RL as any).circleMarker(latlng, { radius: 5, fill: true, fillOpacity: 0.9, color: d.color, weight: 1, opacity: 0.95 })}
                 />
               ))}
             </RL.MapContainer>
           )}
         </div>
 
-        {/* extents & stats */}
         <div style={{ marginTop: 12 }}>
           {(() => {
             const ext = getCombinedExtentFromDayTracks(dayTracks);
@@ -1391,7 +1169,6 @@ async function addMarker(
         )}
       </div>
 
-      {/* image modal */}
       {modalOpen && (
         <div style={{
           position: "fixed", left: 0, top: 0, right: 0, bottom: 0,

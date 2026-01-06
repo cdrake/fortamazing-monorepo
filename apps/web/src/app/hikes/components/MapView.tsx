@@ -155,7 +155,7 @@ export default function MapView({
         if (map) {
           handleWhenCreated(map);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
       }, [map]);
       return null;
     };
@@ -178,14 +178,14 @@ export default function MapView({
         try {
             const elevations = extractElevationsFromFeature(feature) || [];
             // debug - log so you can see calls
-            // eslint-disable-next-line no-console
+             
             console.debug("[MapView] feature clicked", { featId, dayTrackId, elevationsLength: elevations.length });
 
             if (typeof onFeatureClick === "function") {
             onFeatureClick({ elevations, feature, dayTrackId });
             }
         } catch (e) {
-            // eslint-disable-next-line no-console
+             
             console.warn("[MapView] onEachFeature click handler error", e);
         }
         });

@@ -37,7 +37,7 @@ export async function signInWithFacebook(): Promise<User | null> {
   try {
     const result = await signInWithPopup(auth, provider);
     return result.user;
-  } catch (err: any) {
+  } catch {
     // fallback to redirect when popup is blocked
     await signInWithRedirect(auth, provider);
     return null; // firebase will complete login after redirect
