@@ -4,12 +4,12 @@ import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, getDoc, quer
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDCXVK6yBvpjeoP4stncpuO0pYQkMwZ7oc",
-  authDomain: "fortamazing-7a27c.firebaseapp.com",
-  projectId: "fortamazing-7a27c",
-  storageBucket: "fortamazing-7a27c.firebasestorage.app",
-  messagingSenderId: "304795134519",
-  appId: "1:304795134519:web:264e3d1c1809bff2ff2db2",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
   measurementId: "G-FX8J27FEDK"
 };
 
