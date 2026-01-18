@@ -1,0 +1,17 @@
+
+# Local env / secrets
+.env
+.env.*
+
+# Next.js
+.next/
+out/
+
+# Firebase
+.firebase/
+
+# Node
+node_modules/
+
+# TypeScript build artifacts
+tsconfig.tsbuildinfo
