@@ -1,7 +1,10 @@
-
 # Local env / secrets
 .env
 .env.*
+
+# Node
+node_modules/
+.pnpm-store
 
 # Next.js
 .next/
@@ -10,8 +13,13 @@ out/
 # Firebase
 .firebase/
 
-# Node
-node_modules/
-
 # TypeScript build artifacts
 tsconfig.tsbuildinfo
+
+# Turborepo
+.turbo
+
+# OS / editor
+.DS_Store
+.vscode
+*.log

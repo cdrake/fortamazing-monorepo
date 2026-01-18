@@ -1,0 +1,16 @@
+{
+  "name": "fortamazing-monorepo",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "turbo": "^2.0.0"
+  },
+  "scripts": {
+    "dev:web": "pnpm --filter ./apps/web dev",
+    "dev:mobile": "pnpm --filter ./apps/mobile start",
+    "dev": "concurrently \"pnpm dev:web\" \"pnpm dev:mobile\"",
+    "build:web": "pnpm --filter ./apps/web build",
+    "lint": "turbo run lint"
+  }
+}
