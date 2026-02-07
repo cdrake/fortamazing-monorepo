@@ -3,8 +3,13 @@ import type { Difficulty } from "./difficulty";
 import type { Privacy } from "./privacy";
 import type { HikePhoto } from "./hikePhoto";
 import type { SummaryStats } from "./summaryStats";
+import type { Activity } from "./activity";
 
-export type Hike = {
+/** @deprecated Use Activity instead. Hike is kept as an alias during migration. */
+export type Hike = Activity;
+
+/** Original Hike shape — kept for reference during migration. */
+export type LegacyHike = {
   ownerId: string;
   title: string;
   description?: string;

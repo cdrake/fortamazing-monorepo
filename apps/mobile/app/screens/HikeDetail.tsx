@@ -18,7 +18,7 @@ import ImageUploadButton from "@/components/ImageUploadButton"
 import TrackStatsBar from "@/components/TrackStatsBar"
 import { auth as firebaseAuth } from "@/config/firebase"
 import type { LatLng } from "@/lib/geoUtils"
-import { getHike } from "@/lib/hikes"
+import { getActivity } from "@/lib/activities"
 import { listImagesForHike } from "@/lib/images"
 import { loadHikeTrackData, type DayTrack, type HikeTrackData } from "@/lib/trackData"
 import { useAppTheme } from "@/theme/context"
@@ -50,7 +50,7 @@ export default function HikeDetail(): JSX.Element {
     setLoading(true)
     console.log("[HikeDetail] loading hike and images for hikeId:", hikeId)
     try {
-      const h = await getHike(hikeId)
+      const h = await getActivity(hikeId)
       console.log("[HikeDetail] getHike returned:", h)
       setHike(h)
 

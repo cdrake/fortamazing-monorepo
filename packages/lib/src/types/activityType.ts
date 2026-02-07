@@ -1,0 +1,10 @@
+export type ActivityType =
+  | "hike"
+  | "run"
+  | "bike"
+  | "climb"
+  | "ski"
+  | "kayak"
+  | "swim"
+  | "workout"
+  | "other"

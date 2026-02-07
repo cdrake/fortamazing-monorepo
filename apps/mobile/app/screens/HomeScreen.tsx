@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Screen } from "@/components/Screen";
 import { Text } from "@/components/Text";
-import { fetchUserHikes, type MobileHike } from "@/hooks/fetchUserHikes";
+import { fetchUserActivities, type MobileActivity } from "@/hooks/fetchUserActivities";
 import { auth } from "@/config/firebase";
 import type { AppStackScreenProps } from "@/navigators/navigationTypes";
 import { useAppTheme } from "@/theme/context";
@@ -23,7 +23,7 @@ type Props = AppStackScreenProps<"Home">;
 
 export const HomeScreen: React.FC<Props> = ({ navigation }) => {
   const { themed } = useAppTheme();
-  const [hikes, setHikes] = useState<MobileHike[]>([]);
+  const [hikes, setHikes] = useState<MobileActivity[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     }}
   >
     <Text size="xl" weight="bold">
-      Hikes
+      Activities
     </Text>
   </View>
 );
@@ -56,7 +56,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
         setError("Not signed in");
         return;
       }
-      const items = await fetchUserHikes(user.uid);
+      const items = await fetchUserActivities(user.uid);
       // debug: show what images/resolved urls we got
       // eslint-disable-next-line no-console
       console.log("HomeScreen: fetched hikes count:", items.length);
@@ -89,7 +89,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
     // you can add onAuthStateChanged if desired
   }, [load]);
 
-  const renderItem = ({ item }: { item: MobileHike }) => {
+  const renderItem = ({ item }: { item: MobileActivity }) => {
     const thumb = item.thumbnailUrl ?? null;
 
     return (
@@ -122,7 +122,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
       {loading && (
         <View style={{ padding: 20 }}>
           <ActivityIndicator />
-          <Text>Loading hikes…</Text>
+          <Text>Loading activities…</Text>
         </View>
       )}
 
@@ -137,7 +137,7 @@ export const HomeScreen: React.FC<Props> = ({ navigation }) => {
             paddingBottom: insets.bottom + 120,
         }}
         ListEmptyComponent={
-            !loading ? <Text style={{ padding: 20 }}>No hikes found</Text> : null
+            !loading ? <Text style={{ padding: 20 }}>No activities found</Text> : null
         }
         refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />

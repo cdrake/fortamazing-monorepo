@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, User, sendSignInLinkToEmail, ActionCodeSettings, sendEmailVerification, FacebookAuthProvider, signInWithRedirect } from "firebase/auth";
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, getDoc, query, where, setDoc, updateDoc, orderBy } from "firebase/firestore";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, getDoc, query, where, setDoc, updateDoc, orderBy, limit, serverTimestamp } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
 const firebaseConfig = {
@@ -359,4 +359,83 @@ export const getAllCategories = async (): Promise<string[]> => {
 };
 
 
-export { app, auth, db, storage, collection, doc, addDoc, setDoc, getDoc, getDocs, updateDoc, query, where, signInWithGoogle, logout, uploadPost, fetchPosts, deletePost, getUserRole, generateInvite, fetchInvites, deleteInvite, sendVerificationEmail, authCheck, updateProfilePicture, updateUsername };
+// ----------------------------------------
+// ACTIVITIES (replaces hikes + posts)
+// ----------------------------------------
+
+export type ActivityDoc = {
+  id: string;
+  ownerId: string;
+  type: string;
+  title: string;
+  description?: string;
+  descriptionMd?: string;
+  createdAt: unknown;
+  updatedAt?: unknown;
+  privacy: string;
+  public?: boolean;
+  adventureId?: string;
+  photos?: unknown[];
+  images?: unknown[];
+  photoCount?: number;
+  track?: Record<string, unknown>;
+  days?: unknown[];
+  owner?: { uid: string };
+  [key: string]: unknown;
+};
+
+const activitiesCollectionFor = (uid: string) =>
+  collection(db, "users", uid, "activities");
+
+export const createActivity = async (
+  data: Omit<ActivityDoc, "id" | "createdAt" | "updatedAt"> & { [key: string]: unknown }
+) => {
+  const user = auth.currentUser;
+  if (!user) throw new Error("User must be logged in");
+  const uid = data.ownerId || user.uid;
+  const colRef = activitiesCollectionFor(uid);
+  const now = new Date().toISOString();
+  const docRef = await addDoc(colRef, {
+    ...data,
+    ownerId: uid,
+    createdAt: serverTimestamp(),
+    updatedAt: now,
+  });
+  return docRef.id;
+};
+
+export const listActivities = async (
+  uid: string,
+  maxItems = 100
+): Promise<ActivityDoc[]> => {
+  const colRef = activitiesCollectionFor(uid);
+  const q = query(colRef, orderBy("createdAt", "desc"), limit(maxItems));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ActivityDoc));
+};
+
+export const getActivity = async (
+  uid: string,
+  activityId: string
+): Promise<ActivityDoc | null> => {
+  const docRef = doc(db, "users", uid, "activities", activityId);
+  const snap = await getDoc(docRef);
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as ActivityDoc;
+};
+
+export const updateActivity = async (
+  uid: string,
+  activityId: string,
+  data: Partial<ActivityDoc>
+) => {
+  const docRef = doc(db, "users", uid, "activities", activityId);
+  await updateDoc(docRef, { ...data, updatedAt: new Date().toISOString() });
+};
+
+export const deleteActivity = async (uid: string, activityId: string) => {
+  const docRef = doc(db, "users", uid, "activities", activityId);
+  await deleteDoc(docRef);
+};
+
+export { app, auth, db, storage, collection, doc, addDoc, setDoc, getDoc, getDocs, updateDoc, query, where, signInWithGoogle, logout, uploadPost, fetchPosts, deletePost, getUserRole, generateInvite, fetchInvites, deleteInvite, sendVerificationEmail, authCheck, updateProfilePicture, updateUsername, limit, serverTimestamp };

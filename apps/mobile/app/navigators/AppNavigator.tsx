@@ -53,6 +53,7 @@ const AppStack = () => {
           {/* Primary logged-in screens */}
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="HikeDetail" component={HikeDetail} />
+          <Stack.Screen name="ActivityDetail" component={HikeDetail} />
 
           {/* keep your existing welcome/demo screens if still useful */}
           <Stack.Screen name="Welcome" component={WelcomeScreen} />

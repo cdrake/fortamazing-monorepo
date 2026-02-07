@@ -1,1 +1,1 @@
-export type Privacy = "private" | "public";
+export type Privacy = "private" | "public" | "friends";

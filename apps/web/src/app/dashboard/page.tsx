@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth, getUserRole, fetchPosts, Post } from "@/lib/firebase";
+import Link from "next/link";
+import { auth, getUserRole, listActivities, type ActivityDoc } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
-import PostList from "@/components/PostList";
 
 export default function Home() {
   const router = useRouter();
@@ -12,9 +12,9 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(auth.currentUser);
   const [isSocialAdmin, setIsSocialAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [activities, setActivities] = useState<ActivityDoc[]>([]);
 
-  // ✅ Check Authentication and User Role
+  // Check Authentication and User Role
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
@@ -39,19 +39,20 @@ export default function Home() {
     return () => unsubscribe();
   }, [router]);
 
-  // ✅ Fetch Posts
+  // Fetch Activities
   useEffect(() => {
-    const loadPosts = async () => {
+    const loadActivities = async () => {
+      if (!user) return;
       try {
-        const fetchedPosts = await fetchPosts({});
-        setPosts(fetchedPosts);
+        const items = await listActivities(user.uid, 20);
+        setActivities(items);
       } catch (error) {
-        console.error("Error fetching posts:", error);
+        console.error("Error fetching activities:", error);
       }
     };
 
-    loadPosts();
-  }, []);
+    loadActivities();
+  }, [user]);
 
   if (loading) return <p>Loading...</p>;
 
@@ -59,8 +60,26 @@ export default function Home() {
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
 
-      {/* ✅ Display All Posts */}
-      <PostList posts={posts} userId={user?.uid} isSocialAdmin={isSocialAdmin} />
+      <div className="mb-4">
+        <Link href="/hikes" className="text-purple-600 hover:underline font-semibold">
+          View all activities →
+        </Link>
+      </div>
+
+      {activities.length === 0 ? (
+        <p className="text-gray-500">No activities yet. Start by uploading a track!</p>
+      ) : (
+        <ul className="space-y-3">
+          {activities.map((a) => (
+            <li key={a.id} className="p-3 border rounded">
+              <div className="font-semibold">{a.title || "Untitled"}</div>
+              <div className="text-sm text-gray-500">
+                {a.type ?? "activity"} &middot; {a.privacy ?? "private"}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

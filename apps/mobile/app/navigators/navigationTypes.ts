@@ -24,6 +24,7 @@ export type AppStackParamList = {
   // 🔥 Your screens go here
   Home: undefined;
   HikeDetail: { hikeId: string };
+  ActivityDetail: { activityId: string };
   // IGNITE_GENERATOR_ANCHOR_APP_STACK_PARAM_LIST
 }
 
