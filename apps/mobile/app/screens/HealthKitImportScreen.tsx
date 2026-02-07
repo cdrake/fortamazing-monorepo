@@ -12,6 +12,7 @@ import { Screen } from "@/components/Screen"
 import { Text } from "@/components/Text"
 import { ACTIVITY_TYPE_ICON, ACTIVITY_TYPE_LABEL } from "@/lib/activityClassification"
 import {
+  isAvailable,
   requestPermissions,
   fetchRecentWorkouts,
   type HealthKitWorkoutData,
@@ -60,28 +61,44 @@ export const HealthKitImportScreen: React.FC<Props> = ({ navigation }) => {
   const loadWorkouts = async () => {
     setLoading(true)
 
-    const ok = await requestPermissions()
-    if (!ok) {
-      Alert.alert(
-        "HealthKit Unavailable",
-        "Could not access Apple Health. Please enable HealthKit permissions in Settings.",
-      )
+    try {
+      const available = await isAvailable()
+      if (!available) {
+        Alert.alert(
+          "HealthKit Unavailable",
+          "Apple Health is not available on this device.",
+        )
+        setLoading(false)
+        return
+      }
+
+      const ok = await requestPermissions()
+      if (!ok) {
+        Alert.alert(
+          "Permission Denied",
+          "Could not access Apple Health. Please enable HealthKit permissions in Settings > Health > Data Access & Devices > FortAmazing.",
+        )
+        setLoading(false)
+        return
+      }
+
+      // Fetch workouts + already-imported UUIDs in parallel
+      const [wk, existing] = await Promise.all([fetchRecentWorkouts(30), listActivities()])
+
+      const imported = new Set<string>()
+      for (const act of existing) {
+        const hk = (act as any).healthKit
+        if (hk?.uuid) imported.add(hk.uuid)
+      }
+
+      setImportedUuids(imported)
+      setWorkouts(wk)
+    } catch (err: any) {
+      console.warn("HealthKit load error:", err)
+      Alert.alert("Error", err?.message ?? "Failed to load workouts from Apple Health.")
+    } finally {
       setLoading(false)
-      return
     }
-
-    // Fetch workouts + already-imported UUIDs in parallel
-    const [wk, existing] = await Promise.all([fetchRecentWorkouts(30), listActivities()])
-
-    const imported = new Set<string>()
-    for (const act of existing) {
-      const hk = (act as any).healthKit
-      if (hk?.uuid) imported.add(hk.uuid)
-    }
-
-    setImportedUuids(imported)
-    setWorkouts(wk)
-    setLoading(false)
   }
 
   const toggleSelect = (uuid: string) => {

@@ -58,11 +58,37 @@ function mapWorkoutType(appleType: number): ActivityType {
   }
 }
 
+export function isAvailable(): Promise<boolean> {
+  return new Promise((resolve) => {
+    AppleHealthKit.isAvailable((err, available) => {
+      if (err) {
+        console.warn("HealthKit availability check error:", err)
+        resolve(false)
+        return
+      }
+      resolve(available)
+    })
+  })
+}
+
 export async function requestPermissions(): Promise<boolean> {
   if (Platform.OS !== "ios") return false
 
+  const available = await isAvailable()
+  if (!available) {
+    console.warn("HealthKit is not available on this device")
+    return false
+  }
+
   return new Promise((resolve) => {
+    // Timeout in case initHealthKit never calls back
+    const timeout = setTimeout(() => {
+      console.warn("HealthKit initHealthKit timed out after 10s")
+      resolve(false)
+    }, 10_000)
+
     AppleHealthKit.initHealthKit(permissions, (err) => {
+      clearTimeout(timeout)
       if (err) {
         console.warn("HealthKit init error:", err)
         resolve(false)
