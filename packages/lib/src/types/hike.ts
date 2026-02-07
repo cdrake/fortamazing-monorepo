@@ -1,8 +1,8 @@
 import type { LatLng, BBox } from "./geoTypes";
-import type { Difficulty } from "./Difficulty";
-import type { Privacy } from "./Privacy";
-import type { HikePhoto } from "./HikePhoto";
-import type { SummaryStats } from "./SummaryStats";
+import type { Difficulty } from "./difficulty";
+import type { Privacy } from "./privacy";
+import type { HikePhoto } from "./hikePhoto";
+import type { SummaryStats } from "./summaryStats";
 
 export type Hike = {
   ownerId: string;
