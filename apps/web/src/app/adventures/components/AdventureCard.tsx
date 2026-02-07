@@ -1,6 +1,6 @@
 "use client";
 
-import type { Adventure, AdventureStatus } from "@fortamazing/lib/types";
+import type { Adventure, AdventureStatus } from "@fortamazing/lib";
 import Link from "next/link";
 
 const STATUS_COLORS: Record<AdventureStatus, string> = {

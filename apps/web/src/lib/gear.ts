@@ -13,7 +13,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-import type { GearItem, GearCategory } from "@fortamazing/lib/types";
+import type { GearItem, GearCategory } from "@fortamazing/lib";
 
 export type { GearItem, GearCategory };
 

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { listAdventures, createAdventure, deleteAdventure } from "@/lib/adventures";
-import type { Adventure, AdventureStatus } from "@fortamazing/lib/types";
+import type { Adventure, AdventureStatus } from "@fortamazing/lib";
 import AdventureCard from "./components/AdventureCard";
 import AdventureForm from "./components/AdventureForm";
 

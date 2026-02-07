@@ -1,6 +1,6 @@
 "use client";
 
-import type { GearItem, GearCategory } from "@fortamazing/lib/types";
+import type { GearItem, GearCategory } from "@fortamazing/lib";
 import GearCard from "./GearCard";
 import { useState } from "react";
 

@@ -1,6 +1,6 @@
 "use client"
 
-import type { Adventure, PackingListItem } from "@fortamazing/lib/types"
+import type { Adventure, PackingListItem } from "@fortamazing/lib"
 import type { DietRangeSummary } from "../lib/dietFetcher"
 
 type ActivityLike = {

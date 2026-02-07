@@ -14,7 +14,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db, auth } from "@/lib/firebase";
-import type { Adventure, AdventureStatus, PackingListItem } from "@fortamazing/lib/types";
+import type { Adventure, AdventureStatus, PackingListItem } from "@fortamazing/lib";
 
 export type { Adventure, AdventureStatus, PackingListItem };
 

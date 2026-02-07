@@ -1,4 +1,4 @@
-import type { LatLng } from "@fortamazing/lib/types/geoTypes"
+import type { LatLng } from "@fortamazing/lib"
 import type { Feature, LineString } from "geojson"
 
 export type TravelSegment = {

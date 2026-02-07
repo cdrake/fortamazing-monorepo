@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { PackingListItem } from "@fortamazing/lib/types";
+import type { PackingListItem } from "@fortamazing/lib";
 
 type Props = {
   items: PackingListItem[];

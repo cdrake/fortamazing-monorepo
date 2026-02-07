@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
 import { listGear, createGearItem, updateGearItem, deleteGearItem } from "@/lib/gear";
-import type { GearItem, GearCategory } from "@fortamazing/lib/types";
+import type { GearItem, GearCategory } from "@fortamazing/lib";
 import GearList from "./components/GearList";
 import GearForm from "./components/GearForm";
 

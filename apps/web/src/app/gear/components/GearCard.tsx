@@ -1,6 +1,6 @@
 "use client";
 
-import type { GearItem } from "@fortamazing/lib/types";
+import type { GearItem } from "@fortamazing/lib";
 
 type Props = {
   item: GearItem & { id: string };

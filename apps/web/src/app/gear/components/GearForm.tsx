@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { GearCategory } from "@fortamazing/lib/types";
+import type { GearCategory } from "@fortamazing/lib";
 
 const CATEGORIES: GearCategory[] = [
   "shelter", "sleep", "clothing", "cooking", "navigation",

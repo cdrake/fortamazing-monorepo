@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { AdventureStatus } from "@fortamazing/lib/types";
+import type { AdventureStatus } from "@fortamazing/lib";
 
 const STATUSES: AdventureStatus[] = ["planning", "in_progress", "completed", "abandoned"];
 

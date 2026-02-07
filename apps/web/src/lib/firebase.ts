@@ -388,11 +388,11 @@ const activitiesCollectionFor = (uid: string) =>
   collection(db, "users", uid, "activities");
 
 export const createActivity = async (
-  data: Omit<ActivityDoc, "id" | "createdAt" | "updatedAt"> & { [key: string]: unknown }
+  data: Omit<ActivityDoc, "id" | "createdAt" | "updatedAt">
 ) => {
   const user = auth.currentUser;
   if (!user) throw new Error("User must be logged in");
-  const uid = data.ownerId || user.uid;
+  const uid = (data.ownerId as string) || user.uid;
   const colRef = activitiesCollectionFor(uid);
   const now = new Date().toISOString();
   const docRef = await addDoc(colRef, {
