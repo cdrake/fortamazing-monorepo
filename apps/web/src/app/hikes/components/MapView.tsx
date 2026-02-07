@@ -161,7 +161,12 @@ export default function MapView({
     };
 
     // style helpers
-    const combinedStyle = (feat: any) => ({ color: "#ff5722", weight: 4, opacity: 0.25 });
+    const combinedStyle = (feat: any) => ({
+      color: feat?.properties?.color ?? "#ff5722",
+      weight: feat?.properties?.weight ?? 4,
+      opacity: feat?.properties?.opacity ?? 0.25,
+      dashArray: feat?.properties?.dashArray ?? undefined,
+    });
     const dayStyle = (d: DayTrack) => () => ({ color: d.color ?? "#3388ff", weight: 4, opacity: 1.0 });
 
     const chosenTile = tileLayers.find(t => t.id === activeTileId) ?? tileLayers[0];

@@ -37,4 +37,6 @@ export type Adventure = {
   totalElevationGainMeters?: number
 
   packingList?: PackingListItem[]
+
+  storyContent?: string
 }

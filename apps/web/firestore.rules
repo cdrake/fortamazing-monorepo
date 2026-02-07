@@ -104,7 +104,7 @@ service cloud.firestore {
     match /users/{uid}/gear/{gearId} {
       // Gear is private — owner only
       allow read: if request.auth != null
-                  && request.auth.uid == resource.data.ownerId;
+                  && request.auth.uid == uid;
 
       allow create: if request.auth != null
                     && request.resource.data.ownerId == request.auth.uid;
