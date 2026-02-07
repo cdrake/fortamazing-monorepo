@@ -1,15 +1,15 @@
 // src/screens/HikeDetail.tsx
-import React, { JSX, useEffect, useRef, useState } from "react"
+import React, { JSX, useEffect, useState } from "react"
 import {
   View,
   Text as RNText,
+  ScrollView,
   Image,
   ActivityIndicator,
   TouchableOpacity,
   Platform,
 } from "react-native"
 import { RouteProp, useNavigation, useRoute, NavigationProp } from "@react-navigation/native"
-import { NativeViewGestureHandler, ScrollView } from "react-native-gesture-handler"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import DaySelector from "@/components/DaySelector"
@@ -38,7 +38,7 @@ export default function HikeDetail(): JSX.Element {
   const [hike, setHike] = useState<any | null>(null)
   const [images, setImages] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const mapNativeRef = useRef<NativeViewGestureHandler>(null)
+  const [scrollEnabled, setScrollEnabled] = useState(true)
   const navigation = useNavigation<NavigationType>()
 
   // Track state
@@ -130,7 +130,7 @@ export default function HikeDetail(): JSX.Element {
       </TouchableOpacity>
 
       <ScrollView
-        waitFor={mapNativeRef}
+        scrollEnabled={scrollEnabled}
         contentContainerStyle={themed({ padding: 16, paddingTop: (insets.top ?? 0) + 56 })}
       >
         <RNText style={themed({ fontSize: 20, fontWeight: "700", marginBottom: 8 })}>
@@ -141,16 +141,17 @@ export default function HikeDetail(): JSX.Element {
         {/* Map and track visualization */}
         {dayTracks.length > 0 && (
           <View style={{ marginBottom: 12 }}>
-            <NativeViewGestureHandler ref={mapNativeRef} disallowInterruption>
-              <View>
-                <HikeMap
-                  dayTracks={dayTracks}
-                  activeDayIndex={activeDayIndex}
-                  allCoordinates={allCoordinates}
-                  onDayPress={handleDayPress}
-                />
-              </View>
-            </NativeViewGestureHandler>
+            <View
+              onTouchStart={() => setScrollEnabled(false)}
+              onTouchEnd={() => setScrollEnabled(true)}
+            >
+              <HikeMap
+                dayTracks={dayTracks}
+                activeDayIndex={activeDayIndex}
+                allCoordinates={allCoordinates}
+                onDayPress={handleDayPress}
+              />
+            </View>
             <DaySelector
               dayTracks={dayTracks}
               activeDayIndex={activeDayIndex}
