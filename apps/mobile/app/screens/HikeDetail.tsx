@@ -16,12 +16,15 @@ import DaySelector from "@/components/DaySelector"
 import HikeMap from "@/components/HikeMap"
 import ImageUploadButton from "@/components/ImageUploadButton"
 import TrackStatsBar from "@/components/TrackStatsBar"
+import WorkoutDataView from "@/components/WorkoutDataView"
 import { auth as firebaseAuth } from "@/config/firebase"
 import type { LatLng } from "@/lib/geoUtils"
 import { getActivity } from "@/lib/activities"
 import { listImagesForHike } from "@/lib/images"
 import { loadHikeTrackData, type DayTrack, type HikeTrackData } from "@/lib/trackData"
 import { useAppTheme } from "@/theme/context"
+import type { WorkoutData, ActivityType } from "@/lib/activityClassification"
+import { ACTIVITY_TYPE_ICON } from "@/lib/activityClassification"
 
 type RouteParams = {
   HikeDetail: { hikeId: string }
@@ -134,6 +137,7 @@ export default function HikeDetail(): JSX.Element {
         contentContainerStyle={themed({ padding: 16, paddingTop: (insets.top ?? 0) + 56 })}
       >
         <RNText style={themed({ fontSize: 20, fontWeight: "700", marginBottom: 8 })}>
+          {ACTIVITY_TYPE_ICON[(hike?.type as ActivityType) ?? "other"] ?? "🏔️"}{" "}
           {hike?.title ?? "Untitled"}
         </RNText>
         <RNText style={themed({ marginBottom: 12 })}>{hike?.description ?? ""}</RNText>
@@ -158,6 +162,14 @@ export default function HikeDetail(): JSX.Element {
               onDayPress={handleDayPress}
             />
             <TrackStatsBar dayTracks={dayTracks} activeDayIndex={activeDayIndex} />
+          </View>
+        )}
+
+        {/* Workout exercises section (additive — shown if workout data exists) */}
+        {hike?.workout && (hike.workout as WorkoutData).exercises?.length > 0 && (
+          <View style={{ marginBottom: 16, padding: 12, borderWidth: 1, borderColor: "#eee", borderRadius: 12 }}>
+            <RNText style={themed({ fontWeight: "600", fontSize: 16, marginBottom: 8 })}>Exercises</RNText>
+            <WorkoutDataView workout={hike.workout as WorkoutData} />
           </View>
         )}
 

@@ -1,5 +1,6 @@
 export type ActivityType =
   | "hike"
+  | "walk"
   | "run"
   | "bike"
   | "climb"

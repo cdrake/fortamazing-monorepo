@@ -1,16 +1,20 @@
 "use client"
 
-import type { Adventure, PackingListItem } from "@fortamazing/lib"
+import type { Adventure, PackingListItem, WorkoutData } from "@fortamazing/lib"
+import { isWorkoutActivity } from "@/lib/activityClassification"
+import type { ActivityType } from "@fortamazing/lib"
 import type { DietRangeSummary } from "../lib/dietFetcher"
 
 type ActivityLike = {
   id: string
   title?: string
+  type?: string
   startTime?: string
   endTime?: string
   durationSeconds?: number
   photos?: { url?: string; downloadUrl?: string }[]
   photoCount?: number
+  workout?: WorkoutData
   track?: {
     distanceMeters?: number
     movingTimeSeconds?: number
@@ -40,16 +44,37 @@ function formatDistance(meters: number): string {
 }
 
 export default function StoryTab({ adventure, activities, dietSummary }: Props) {
-  const totalDistance = activities.reduce((sum, a) => {
+  const gpsActivities = activities.filter(
+    (a) => !isWorkoutActivity((a.type ?? "other") as ActivityType),
+  )
+  const workoutActivities = activities.filter(
+    (a) => isWorkoutActivity((a.type ?? "other") as ActivityType) || a.workout,
+  )
+
+  const totalDistance = gpsActivities.reduce((sum, a) => {
     return sum + (a.track?.distanceMeters ?? a.distanceMeters ?? 0)
   }, 0)
 
-  const totalMovingTime = activities.reduce((sum, a) => {
+  const totalMovingTime = gpsActivities.reduce((sum, a) => {
     return sum + (a.track?.movingTimeSeconds ?? a.durationSeconds ?? 0)
   }, 0)
 
-  const totalElevation = activities.reduce((sum, a) => {
+  const totalElevation = gpsActivities.reduce((sum, a) => {
     return sum + (a.track?.elevationGainMeters ?? a.elevationGainMeters ?? 0)
+  }, 0)
+
+  // Workout stats
+  const workoutSessions = workoutActivities.length
+  const totalExercises = workoutActivities.reduce((sum, a) => {
+    const w = a.workout as WorkoutData | undefined
+    return sum + (w?.exercises?.length ?? 0)
+  }, 0)
+  const totalSets = workoutActivities.reduce((sum, a) => {
+    const w = a.workout as WorkoutData | undefined
+    return sum + (w?.exercises?.reduce((s, ex) => s + (ex.sets?.length ?? 0), 0) ?? 0)
+  }, 0)
+  const workoutTime = workoutActivities.reduce((sum, a) => {
+    return sum + (a.durationSeconds ?? 0)
   }, 0)
 
   const startTimes = activities
@@ -84,13 +109,25 @@ export default function StoryTab({ adventure, activities, dietSummary }: Props) 
         </p>
       )}
 
-      {/* Stats cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Distance" value={totalDistance > 0 ? formatDistance(totalDistance) : "--"} />
-        <StatCard label="Moving Time" value={totalMovingTime > 0 ? formatDuration(totalMovingTime) : "--"} />
-        <StatCard label="Elevation Gain" value={totalElevation > 0 ? `${Math.round(totalElevation)} m` : "--"} />
-        <StatCard label="Activities" value={String(activities.length)} />
-      </div>
+      {/* GPS stats cards */}
+      {gpsActivities.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard label="Distance" value={totalDistance > 0 ? formatDistance(totalDistance) : "--"} />
+          <StatCard label="Moving Time" value={totalMovingTime > 0 ? formatDuration(totalMovingTime) : "--"} />
+          <StatCard label="Elevation Gain" value={totalElevation > 0 ? `${Math.round(totalElevation)} m` : "--"} />
+          <StatCard label="Activities" value={String(gpsActivities.length)} />
+        </div>
+      )}
+
+      {/* Workout stats cards */}
+      {workoutSessions > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard label="Sessions" value={String(workoutSessions)} />
+          <StatCard label="Exercises" value={totalExercises > 0 ? String(totalExercises) : "--"} />
+          <StatCard label="Total Sets" value={totalSets > 0 ? String(totalSets) : "--"} />
+          <StatCard label="Workout Time" value={workoutTime > 0 ? formatDuration(workoutTime) : "--"} />
+        </div>
+      )}
 
       {/* Photo highlights */}
       {photoHighlights.length > 0 && (

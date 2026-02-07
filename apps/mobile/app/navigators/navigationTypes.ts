@@ -6,6 +6,9 @@ import {
   NavigatorScreenParams,
 } from "@react-navigation/native"
 import { NativeStackScreenProps } from "@react-navigation/native-stack"
+import type { ActivityType } from "@/lib/activityClassification"
+import type { GpsTrackResult } from "@/lib/gpsTypes"
+import type { HealthKitWorkoutData } from "@/lib/healthKit"
 
 // Demo Tab Navigator types
 export type DemoTabParamList = {
@@ -25,6 +28,10 @@ export type AppStackParamList = {
   Home: undefined;
   HikeDetail: { hikeId: string };
   ActivityDetail: { activityId: string };
+  NewActivity: undefined;
+  Recording: { type: ActivityType };
+  SaveActivity: { type: ActivityType; trackData?: GpsTrackResult; healthKitWorkout?: HealthKitWorkoutData };
+  HealthKitImport: undefined;
   // IGNITE_GENERATOR_ANCHOR_APP_STACK_PARAM_LIST
 }
 

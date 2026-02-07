@@ -18,6 +18,10 @@ import { useAppTheme } from "@/theme/context";
 import { DemoNavigator } from "./DemoNavigator";
 import HomeScreen from "@/screens/HomeScreen";
 import HikeDetail from "@/screens/HikeDetail";
+import { NewActivityScreen } from "@/screens/NewActivityScreen";
+import { RecordingScreen } from "@/screens/RecordingScreen";
+import { SaveActivityScreen } from "@/screens/SaveActivityScreen";
+import { HealthKitImportScreen } from "@/screens/HealthKitImportScreen";
 import type { AppStackParamList, NavigationProps } from "./navigationTypes";
 import { navigationRef, useBackButtonHandler } from "./navigationUtilities";
 
@@ -54,6 +58,10 @@ const AppStack = () => {
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="HikeDetail" component={HikeDetail} />
           <Stack.Screen name="ActivityDetail" component={HikeDetail} />
+          <Stack.Screen name="NewActivity" component={NewActivityScreen} />
+          <Stack.Screen name="Recording" component={RecordingScreen} />
+          <Stack.Screen name="SaveActivity" component={SaveActivityScreen} />
+          <Stack.Screen name="HealthKitImport" component={HealthKitImportScreen} />
 
           {/* keep your existing welcome/demo screens if still useful */}
           <Stack.Screen name="Welcome" component={WelcomeScreen} />

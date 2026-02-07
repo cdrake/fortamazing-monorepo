@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { auth, getUserRole, listActivities, type ActivityDoc } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
+import type { ActivityType, WorkoutData } from "@fortamazing/lib";
+import { ACTIVITY_TYPE_ICON } from "@/lib/activityClassification";
 
 export default function Home() {
   const router = useRouter();
@@ -70,14 +72,25 @@ export default function Home() {
         <p className="text-gray-500">No activities yet. Start by uploading a track!</p>
       ) : (
         <ul className="space-y-3">
-          {activities.map((a) => (
-            <li key={a.id} className="p-3 border rounded">
-              <div className="font-semibold">{a.title || "Untitled"}</div>
-              <div className="text-sm text-gray-500">
-                {a.type ?? "activity"} &middot; {a.privacy ?? "private"}
-              </div>
-            </li>
-          ))}
+          {activities.map((a) => {
+            const icon = ACTIVITY_TYPE_ICON[(a.type as ActivityType) ?? "other"] ?? "🏔️";
+            const workout = a.workout as WorkoutData | undefined;
+            const isWorkout = a.type === "workout";
+            return (
+              <li key={a.id} className="p-3 border rounded">
+                <div className="font-semibold">
+                  <span className="mr-1">{icon}</span>
+                  {a.title || "Untitled"}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {a.type ?? "activity"} &middot; {a.privacy ?? "private"}
+                  {isWorkout && workout && (
+                    <> &middot; {workout.exercises?.length ?? 0} exercises, {workout.exercises?.reduce((s, ex) => s + (ex.sets?.length ?? 0), 0) ?? 0} sets</>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
