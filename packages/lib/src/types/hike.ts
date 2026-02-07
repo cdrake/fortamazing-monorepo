@@ -1,17 +1,45 @@
-import type { ImageMeta } from "./image";
-import type { Track } from "./track";
+import type { LatLng, BBox } from "./geoTypes";
+import type { Difficulty } from "./Difficulty";
+import type { Privacy } from "./Privacy";
+import type { HikePhoto } from "./HikePhoto";
+import type { SummaryStats } from "./SummaryStats";
 
 export type Hike = {
-  id: string;
-  uid: string;
-
+  ownerId: string;
   title: string;
-  descriptionMd?: string;
+  description?: string;
 
-  // Firestore timestamp (we can tighten later)
-  createdAt?: unknown;
-  updatedAt?: unknown;
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
 
-  track?: Track;
-  images?: ImageMeta[];
+  startTime?: string; // ISO
+  endTime?: string;   // ISO
+
+  distanceMeters?: number;
+  movingTimeSeconds?: number;
+  elevationGainMeters?: number;
+
+  difficulty?: Difficulty;
+  privacy: Privacy;
+  public: boolean;
+
+  startLocation?: LatLng;
+  endLocation?: LatLng;
+
+  bbox?: BBox;
+  geohash?: string;
+
+  encodedPolyline?: string;
+  polylineSimplifiedResolution?: number;
+
+  trackStoragePath?: string;
+
+  photoCount?: number;
+  photos?: HikePhoto[];
+
+  elevationHistogram?: number[];
+  tags?: string[];
+  friends?: string[];
+
+  summaryStats?: SummaryStats;
 };
