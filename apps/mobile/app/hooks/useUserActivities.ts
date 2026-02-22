@@ -1,6 +1,6 @@
 // src/hooks/useUserActivities.ts
 import { useEffect, useState } from "react"
-import { collection, query, orderBy, onSnapshot, QuerySnapshot, DocumentData } from "firebase/firestore"
+import { collection, query, orderBy, onSnapshot, QuerySnapshot, DocumentData, limit } from "firebase/firestore"
 import { db, auth } from "../config/firebase"
 import { resolveStoragePathToDownloadUrl } from "@/lib/images"
 
@@ -39,7 +39,7 @@ export function useUserActivities(limitCount = 100) {
     }
 
     const activitiesRef = collection(db, "users", user.uid, "activities")
-    const q = query(activitiesRef, orderBy("createdAt", "desc"))
+    const q = query(activitiesRef, orderBy("createdAt", "desc"), limit(limitCount))
 
     const unsub = onSnapshot(
       q,

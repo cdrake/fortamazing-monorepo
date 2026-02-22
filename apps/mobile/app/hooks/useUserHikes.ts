@@ -1,6 +1,6 @@
 // src/hooks/useUserHikes.ts
 import { useEffect, useState } from "react";
-import { doc, collection, query, orderBy, onSnapshot, QuerySnapshot, DocumentData } from "firebase/firestore";
+import { doc, collection, query, orderBy, onSnapshot, QuerySnapshot, DocumentData, limit } from "firebase/firestore";
 import { db, auth } from "../config/firebase";
 import { getDownloadURL, getStorage, ref as storageRef } from "firebase/storage";
 import { app as firebaseApp } from "@/config/firebase";
@@ -37,7 +37,7 @@ export function useUserHikes(limitCount = 100) {
     }
 
     const hikesRef = collection(db, "users", user.uid, "hikes");
-    const q = query(hikesRef, orderBy("createdAt", "desc"));
+    const q = query(hikesRef, orderBy("createdAt", "desc"), limit(limitCount));
 
     const unsub = onSnapshot(
       q,
