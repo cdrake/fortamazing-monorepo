@@ -112,7 +112,11 @@ const uploadPost = async (
 };
 
 
-// ✅ Fetch all posts
+// Fetch all posts
+// NOTE: Firestore supports at most ONE `array-contains-any` filter per query.
+// When multiple array filters are provided we apply the first as a Firestore
+// constraint and the remaining filters client-side to avoid runtime errors.
+// See: https://firebase.google.com/docs/firestore/query-data/queries#limits_on_or_queries
 const fetchPosts = async ({
   userId,
   categories = [],
@@ -125,44 +129,51 @@ const fetchPosts = async ({
   tags?: string[];
 } = {}): Promise<Post[]> => {
   try {
-    // ✅ Start with the base query
     const postsRef = collection(db, "posts");
 
-    // ✅ Build filters array
-    const filters = [];
-
+    // Build Firestore-compatible filters (max 1 array-contains-any)
+    const firestoreFilters = [];
     if (userId) {
-      filters.push(where("userId", "==", userId));
+      firestoreFilters.push(where("userId", "==", userId));
     }
 
-    if (categories.length > 0) {
-      filters.push(where("categories", "array-contains-any", categories));
+    // Pick at most one array-contains-any for the server query
+    type ArrayFilter = { field: string; values: string[] };
+    const arrayFilters: ArrayFilter[] = [];
+    if (categories.length > 0) arrayFilters.push({ field: "categories", values: categories });
+    if (subcategories.length > 0) arrayFilters.push({ field: "subcategories", values: subcategories });
+    if (tags.length > 0) arrayFilters.push({ field: "tags", values: tags });
+
+    // Apply the first array filter server-side (if any)
+    if (arrayFilters.length > 0) {
+      const first = arrayFilters[0];
+      firestoreFilters.push(where(first.field, "array-contains-any", first.values));
     }
 
-    if (subcategories.length > 0) {
-      filters.push(where("subcategories", "array-contains-any", subcategories));
-    }
-
-    if (tags.length > 0) {
-      filters.push(where("tags", "array-contains-any", tags));
-    }
-
-    // ✅ Apply filters and order
-    const finalQuery = filters.length > 0
-      ? query(postsRef, ...filters, orderBy("createdAt", "desc"))
+    const finalQuery = firestoreFilters.length > 0
+      ? query(postsRef, ...firestoreFilters, orderBy("createdAt", "desc"))
       : query(postsRef, orderBy("createdAt", "desc"));
 
-    // ✅ Execute the query
     const querySnapshot = await getDocs(finalQuery);
 
-    // ✅ Map results to Post type
-    return querySnapshot.docs.map((doc) => ({
+    let results = querySnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     })) as Post[];
 
+    // Apply remaining array filters client-side
+    for (let i = 1; i < arrayFilters.length; i++) {
+      const { field, values } = arrayFilters[i];
+      results = results.filter((post) => {
+        const arr = (post as Record<string, unknown>)[field];
+        if (!Array.isArray(arr)) return false;
+        return values.some((v) => arr.includes(v));
+      });
+    }
+
+    return results;
   } catch (error) {
-    console.error("❌ Error fetching posts:", error);
+    console.error("Error fetching posts:", error);
     return [];
   }
 };
