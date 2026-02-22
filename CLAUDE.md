@@ -1,97 +1,260 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) and
+automated agents when working with code in this repository.
+
+> Goal: Let agents accelerate development while keeping humans in the
+> loop for risky or production-impacting actions.
+
+------------------------------------------------------------------------
 
 ## Project Overview
 
-FortAmazing is a hiking/outdoor activity platform with social features, GPS track management, and photo sharing. The app uses Firebase as its backend (Auth, Firestore, Storage, Cloud Functions).
+FortAmazing is a hiking/outdoor activity platform with social features,
+GPS track management, and photo sharing. The app uses Firebase as its
+backend (Auth, Firestore, Storage, Cloud Functions).
+
+------------------------------------------------------------------------
 
 ## Monorepo Structure
 
-This is a pnpm workspace monorepo orchestrated by Turborepo:
+This is a pnpm workspace orchestrated by Turborepo:
 
-- **apps/web** — Next.js 16 web app (React 19, Tailwind CSS, Radix UI, Leaflet maps)
-- **apps/mobile** — Expo 54 / React Native 0.81 mobile app (Ignite v11 boilerplate, React Navigation)
-- **packages/lib** — Shared TypeScript types and Firebase initialization utilities
+-   **apps/web** --- Next.js 16 web app (React 19, Tailwind CSS, Radix
+    UI, Leaflet maps)
+-   **apps/mobile** --- Expo 54 / React Native 0.81 mobile app (Ignite
+    v11 boilerplate, React Navigation)
+-   **packages/lib** --- Shared TypeScript types and Firebase
+    initialization utilities
 
-**Important**: The root uses pnpm, but each app under `apps/` uses npm with its own `package-lock.json`. Install dependencies within each app directory using `npm install`, not pnpm.
+Important: The root uses pnpm, but each app under `apps/` uses npm with
+its own `package-lock.json`. Install dependencies inside each app
+directory using `npm install`, not pnpm.
+
+------------------------------------------------------------------------
 
 ## Common Commands
 
-### Root (monorepo)
-```bash
-pnpm dev              # Run web + mobile concurrently
-pnpm dev:web          # Web only (Next.js dev with turbopack)
-pnpm dev:mobile       # Mobile only (Expo dev client)
-pnpm lint             # Lint all packages via Turborepo
-pnpm build:web        # Build the web app
+### Root
+
+``` bash
+pnpm dev
+pnpm dev:web
+pnpm dev:mobile
+pnpm lint
+pnpm build:web
 ```
 
 ### Web (`apps/web`)
-```bash
-npm run dev           # Next.js dev server with turbopack
-npm run build         # Production build
-npm run lint          # ESLint
-npm run lint:fix      # ESLint with auto-fix
+
+``` bash
+npm run dev
+npm run build
+npm run lint
+npm run lint:fix
 ```
 
 ### Mobile (`apps/mobile`)
-```bash
-npm start             # Expo dev client
-npx expo run:ios      # Run on iOS simulator
-npm run android       # Run on Android emulator
-npm run compile       # TypeScript type-check (tsc --noEmit)
-npm run lint          # ESLint with auto-fix
-npm run lint:check    # ESLint without auto-fix
-npm test              # Jest tests
-npm run test:watch    # Jest in watch mode
-npm run test:maestro  # Maestro E2E tests
+
+``` bash
+npm start
+npx expo run:ios
+npm run android
+npm run compile
+npm run lint
+npm run lint:check
+npm test
+npm run test:watch
+npm run test:maestro
 ```
 
-### Mobile builds (EAS)
-```bash
-eas build --profile development --platform ios
-eas build --profile preview --platform ios
-eas build --profile production --platform ios
-# Same patterns for android
-```
+------------------------------------------------------------------------
 
 ## Architecture
 
-### Shared Types (`packages/lib`)
-All domain types (Hike, Track, ImageMeta, geo types, etc.) live in `packages/lib/src/types/`. Both apps should import shared types from this package. Firebase client initialization helpers are in `packages/lib/src/firebase/` with separate `web.ts` and `mobile.ts` entry points.
+-   Shared types live in `packages/lib/src/types/`
+-   Firebase helpers in `packages/lib/src/firebase/` (web.ts /
+    mobile.ts)
+-   Web uses App Router (`src/app`)
+-   Mobile uses Ignite v11 structure
+-   Firestore rules: `apps/web/firestore.rules`
+-   Storage rules: `apps/web/storage.rules`
+-   Cloud Functions runtime: Node 18
 
-Path alias: `@fortamazing/*` maps to `packages/*/src` (configured in root `tsconfig.base.json`).
+------------------------------------------------------------------------
 
-### Web App (`apps/web`)
-- **Routing**: Next.js App Router (`src/app/` directory)
-- **Key routes**: `/hikes`, `/dashboard`, `/diet`, `/u/[username]`, `/admin`, `/login`, `/signup`
-- **Firebase client**: `src/lib/firebase.ts` — comprehensive client with Firestore, Auth, Storage helpers
-- **Styling**: Tailwind CSS with HSL custom properties, tailwindcss-animate
-- **Maps**: Leaflet + react-leaflet + Turf.js for geospatial operations
-- **Path alias**: `@/*` maps to `src/*`
+# AGENT EXECUTION POLICY
 
-### Mobile App (`apps/mobile`)
-- **Architecture**: Ignite v11 patterns (screens, components, services, navigators, theme)
-- **Navigation**: React Navigation with native-stack and bottom-tabs
-- **Auth**: `app/context/AuthContext.tsx` — Firebase Auth + Google Sign-In
-- **Firebase**: `app/config/firebase.ts`
-- **i18n**: i18next with translations in `app/i18n/`
-- **Local storage**: MMKV for fast key-value, AsyncStorage for preferences
-- **Path aliases**: `@/*` → `app/*`, `@assets/*` → `assets/*`
-- **Testing**: Jest + @testing-library/react-native; Maestro flows in `.maestro/`
+These rules apply to any automated agent operating in this repository.
 
-### Firebase
-- **Firestore rules**: `apps/web/firestore.rules`
-- **Storage rules**: `apps/web/storage.rules`
-- **Firestore indexes**: `apps/web/firestore.indexes.json`
-- **Cloud Functions runtime**: Node.js 18
+------------------------------------------------------------------------
 
-## TypeScript
-Both apps use strict mode. The web ESLint config is relaxed on `no-explicit-any` and `no-unused-vars`. The mobile ESLint config is stricter and includes Prettier integration, import ordering, and reactotron production guards.
+## Branching Rules
+
+Agents must:
+
+-   Use branch prefix: `agent/<agent-name>/<ticket>-<short-desc>`
+
+Example:
+
+    agent/implement/jira-123-add-login
+
+Agents may:
+
+-   Push automatically only to `agent/*` branches
+-   Open PRs from `agent/*` to `main` or `staging`
+
+Agents must NOT:
+
+-   Push directly to `main`
+-   Merge into protected branches
+-   Bypass CI
+
+------------------------------------------------------------------------
+
+## Command Execution Tiers
+
+### Tier 0 --- Auto-run Allowed
+
+Agents may execute without approval:
+
+-   npm install
+-   npm ci
+-   npm run build
+-   npm test
+-   pnpm dev
+-   git status
+-   git diff
+-   git add
+-   git commit
+-   docker build
+
+### Tier 1 --- Allowed with PR
+
+Agents may:
+
+-   Push to `agent/*` branches
+-   Open PRs
+-   Trigger CI
+
+Merge requires:
+
+-   At least 1 human reviewer
+-   Passing CI
+
+### Tier 2 --- Explicit Human Approval Required
+
+Agents must request approval before:
+
+-   git push origin main
+-   git merge main
+-   rm -rf
+-   sudo
+-   terraform apply
+-   kubectl apply
+-   Production EAS builds
+-   Firestore or storage production writes
+-   Infrastructure changes
+
+If unsure, agents must ask.
+
+------------------------------------------------------------------------
+
+## Commit Format (Required for Agents)
+
+    agent(<agent-name>): <type>(<scope>): <description> [agent-run-id:<uuid>]
+
+Example:
+
+    agent(implement): feat(hikes): add track polyline parser [agent-run-id: abc123]
+
+------------------------------------------------------------------------
+
+## PR Requirements
+
+Each PR created by an agent must include:
+
+-   Summary
+-   List of changed files
+-   Test results
+-   Confirmation lint passed
+-   Agent run ID
+
+Agents must not merge their own PRs.
+
+------------------------------------------------------------------------
+
+## Safety & Secrets
+
+-   Never commit secrets
+-   Never store `.env` values in repo
+-   Use environment variables only
+-   Assume production credentials are restricted
+
+------------------------------------------------------------------------
+
+## Optional: Shell Allowlist Wrapper
+
+Recommended: agents should execute commands through a wrapper at:
+
+`scripts/agent-allowed.sh`
+
+Example:
+
+``` bash
+#!/usr/bin/env bash
+
+ALLOWED_PREFIXES=(
+  "npm install"
+  "npm ci"
+  "npm run"
+  "pnpm"
+  "git status"
+  "git diff"
+  "git add"
+  "git commit"
+  "docker build"
+)
+
+CMD="$*"
+
+for pref in "${ALLOWED_PREFIXES[@]}"; do
+  if [[ "$CMD" == "$pref"* ]]; then
+    exec "$@"
+  fi
+done
+
+echo "Blocked command: $CMD"
+exit 2
+```
+
+Make executable:
+
+``` bash
+chmod +x scripts/agent-allowed.sh
+```
+
+------------------------------------------------------------------------
 
 ## Key Domain Concepts
-- **Hike**: Core entity with GPS track, photos, elevation data, encoded polyline, geohash for spatial queries
-- **Track**: GPS track data with distance, elevation, duration summaries
-- **Posts**: Social content tied to users
-- **Diet**: Nutrition tracking with USDA/UPC food database integration (web only)
+
+-   **Hike** --- GPS track, photos, elevation, polyline, geohash
+-   **Track** --- distance, elevation, duration summaries
+-   **Posts** --- social content
+-   **Diet** --- USDA/UPC nutrition tracking (web only)
+
+------------------------------------------------------------------------
+
+## TL;DR
+
+Agents may:
+
+-   Auto-run safe commands
+-   Push to `agent/*`
+-   Open PRs
+
+Agents must not:
+
+-   Merge to `main`
+-   Run destructive or production commands without approval
+-   Commit secrets
