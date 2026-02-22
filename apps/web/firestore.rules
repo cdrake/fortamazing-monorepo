@@ -17,13 +17,10 @@ service cloud.firestore {
     // USER PROFILES
     // ----------------------------------------
     match /users/{userId} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if request.auth != null;
       allow update, delete, write: if request.auth != null
                                    && request.auth.uid == userId;
-    }
-
-    match /users {
-      allow read: if true;
     }
 
     // ----------------------------------------
@@ -51,7 +48,7 @@ service cloud.firestore {
 
     // Allow collectionGroup queries (list) for any hikes subcollection
     match /{anyPath=**}/hikes {
-      allow list: if true; // allows collectionGroup list queries if you want public lists
+      allow list: if request.auth != null;
     }
 
     // Generic access rules for any single hike doc in any subcollection named "hikes"
@@ -75,6 +72,65 @@ service cloud.firestore {
       // UPDATE / DELETE: only owner can modify/delete after creation
       allow update, delete: if request.auth != null
                             && request.auth.uid == resource.data.owner.uid;
+    }
+
+    // ----------------------------------------
+    // ACTIVITIES (replaces hikes)
+    // ----------------------------------------
+
+    // CollectionGroup list — allow public activity feed
+    match /{anyPath=**}/activities {
+      allow list: if resource.data.privacy == "public" || (request.auth != null && request.auth.uid == resource.data.ownerId);
+    }
+
+    match /users/{uid}/activities/{activityId} {
+      // GET: public activities OR owner
+      allow get: if resource.data.privacy == "public"
+                 || (request.auth != null && request.auth.uid == resource.data.ownerId);
+
+      // LIST: owner can list their own subcollection; public feed uses collection group
+      allow list: if request.auth != null && request.auth.uid == uid;
+
+      // CREATE: authenticated, must own the activity
+      allow create: if request.auth != null
+                    && request.resource.data.ownerId == request.auth.uid
+                    && request.resource.data.title is string;
+
+      // UPDATE / DELETE: owner only
+      allow update, delete: if request.auth != null
+                            && request.auth.uid == resource.data.ownerId;
+    }
+
+    // ----------------------------------------
+    // ADVENTURES
+    // ----------------------------------------
+    match /users/{uid}/adventures/{adventureId} {
+      allow get: if resource.data.privacy == "public"
+                 || (request.auth != null && request.auth.uid == resource.data.ownerId);
+
+      allow list: if request.auth != null && request.auth.uid == uid;
+
+      allow create: if request.auth != null
+                    && request.resource.data.ownerId == request.auth.uid
+                    && request.resource.data.title is string;
+
+      allow update, delete: if request.auth != null
+                            && request.auth.uid == resource.data.ownerId;
+    }
+
+    // ----------------------------------------
+    // GEAR
+    // ----------------------------------------
+    match /users/{uid}/gear/{gearId} {
+      // Gear is private — owner only
+      allow read: if request.auth != null
+                  && request.auth.uid == uid;
+
+      allow create: if request.auth != null
+                    && request.resource.data.ownerId == request.auth.uid;
+
+      allow update, delete: if request.auth != null
+                            && request.auth.uid == resource.data.ownerId;
     }
   }
 }
