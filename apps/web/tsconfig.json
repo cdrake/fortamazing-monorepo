@@ -26,6 +26,9 @@
     "paths": {
       "@/*": [
         "src/*"
+      ],
+      "@fortamazing/lib/*": [
+        "../../packages/lib/src/*"
       ]
     }
   },
@@ -34,7 +37,8 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    "../../packages/lib/src/**/*.ts"
   ],
   "exclude": [
     "node_modules"
