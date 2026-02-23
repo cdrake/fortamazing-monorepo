@@ -6,4 +6,7 @@ export type PhotoExif = {
   shutterSpeed?: string;
   iso?: number;
   orientation?: number;
+  lat?: number;
+  lon?: number;
+  takenAt?: string;
 };

@@ -3,8 +3,8 @@ import { View, ActivityIndicator } from "react-native"
 import * as ImagePicker from "expo-image-picker"
 
 import { Button } from "@/components/Button"
+import { addImageMeta, parseExifGps } from "@/lib/images"
 import { uploadImageFromUri } from "@/lib/storage"
-// import { addImageMeta } from "@/lib/images"
 import { useAppTheme } from "@/theme/context"
 
 type ImageUploadButtonProps = {
@@ -21,6 +21,7 @@ export default function ImageUploadButton({ hikeId, onUploadComplete }: ImageUpl
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.8,
+        exif: true,
       })
 
       // User canceled picker
@@ -39,12 +40,23 @@ export default function ImageUploadButton({ hikeId, onUploadComplete }: ImageUpl
       // Upload to Firebase Storage
       const url = await uploadImageFromUri(asset.uri, remotePath)
 
+      // Extract GPS and date from EXIF if available
+      const exif = asset.exif
+      const gps = exif ? parseExifGps(exif) : null
+      const takenAt = exif?.DateTimeOriginal ? String(exif.DateTimeOriginal) : undefined
+
       // Save metadata in Firestore
-      //   await addImageMeta(hikeId, {
-      //     url,
-      //     filename,
-      //   })
-      console.log("addImageMeta is currently disabled; uploaded image URL:", url)
+      await addImageMeta(hikeId, {
+        url,
+        filename,
+        path: remotePath,
+        ...(gps ? { lat: gps.lat, lon: gps.lon } : {}),
+        ...(takenAt ? { takenAt } : {}),
+        ...(asset.width && asset.height
+          ? { meta: { width: asset.width, height: asset.height } }
+          : {}),
+      })
+
       onUploadComplete?.()
     } catch (error) {
       console.warn("Image upload failed", error)

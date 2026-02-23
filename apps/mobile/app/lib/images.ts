@@ -1,5 +1,5 @@
 // src/lib/images.ts
-import { doc, getDoc } from "firebase/firestore"
+import { doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore"
 import { getStorage, ref as storageRef, getDownloadURL } from "firebase/storage"
 
 import { db, auth } from "@/config/firebase"
@@ -56,6 +56,84 @@ export async function resolveStoragePathToDownloadUrl(pathOrGs?: string) {
     console.warn("[resolveStoragePathToDownloadUrl] failed for", pathOrGs, err)
     return undefined
   }
+}
+
+/**
+ * Shape matching the shared ActivityPhoto type from packages/lib.
+ * Duplicated here because mobile cannot import @fortamazing/lib directly.
+ */
+type ActivityPhoto = {
+  path?: string
+  url?: string
+  filename?: string
+  contentType?: string
+  lat?: number | null
+  lon?: number | null
+  takenAt?: string
+  meta?: Record<string, unknown>
+}
+
+/**
+ * Parse EXIF GPS data to decimal degrees.
+ * Handles both iOS (decimal) and Android (DMS rational) formats from expo-image-picker.
+ */
+export function parseExifGps(exif: Record<string, any>): { lat: number; lon: number } | null {
+  const rawLat = exif.GPSLatitude
+  const rawLon = exif.GPSLongitude
+  const latRef = exif.GPSLatitudeRef ?? "N"
+  const lonRef = exif.GPSLongitudeRef ?? "E"
+
+  if (rawLat == null || rawLon == null) return null
+
+  const toDec = (value: unknown): number | null => {
+    if (typeof value === "number") return value
+    // Android may provide a DMS string like "37/1,46/1,29.16/1"
+    if (typeof value === "string") {
+      const parts = value.split(",").map((p) => {
+        const [num, den] = p.trim().split("/").map(Number)
+        return den ? num / den : num
+      })
+      if (parts.length === 3) {
+        return parts[0] + parts[1] / 60 + parts[2] / 3600
+      }
+      const n = Number(value)
+      return isNaN(n) ? null : n
+    }
+    return null
+  }
+
+  const lat = toDec(rawLat)
+  const lon = toDec(rawLon)
+  if (lat == null || lon == null) return null
+
+  return {
+    lat: latRef === "S" ? -Math.abs(lat) : Math.abs(lat),
+    lon: lonRef === "W" ? -Math.abs(lon) : Math.abs(lon),
+  }
+}
+
+/**
+ * Append an image metadata entry to the Firestore activity/hike document's `images` array.
+ * Tries `activities` collection first, falls back to legacy `hikes`.
+ */
+export async function addImageMeta(activityId: string, photo: ActivityPhoto): Promise<void> {
+  const uid = auth?.currentUser?.uid
+  if (!uid) {
+    throw new Error("[addImageMeta] no authenticated user")
+  }
+
+  // Try activities first, fall back to hikes (consistent with listImagesForHike)
+  let docRef = doc(db, "users", uid, "activities", activityId)
+  let snap = await getDoc(docRef)
+  if (!snap.exists()) {
+    docRef = doc(db, "users", uid, "hikes", activityId)
+    snap = await getDoc(docRef)
+  }
+  if (!snap.exists()) {
+    throw new Error(`[addImageMeta] document not found for ${activityId}`)
+  }
+
+  await updateDoc(docRef, { images: arrayUnion(photo) })
 }
 
 /**
