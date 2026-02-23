@@ -1,8 +1,9 @@
 import * as Location from "expo-location"
 import type { FeatureCollection, LineString, Position } from "geojson"
+
 import { haversineDistance } from "@/lib/geoUtils"
-import { load, save, remove } from "@/utils/storage"
 import type { GpsPoint, GpsTrackResult, RecordingState } from "@/lib/gpsTypes"
+import { load, save, remove } from "@/utils/storage"
 
 const TASK_NAME = "BACKGROUND_LOCATION"
 const STORAGE_KEY = "gps_recording_state"

@@ -1,6 +1,7 @@
-import React, { useCallback, useState } from "react"
+import { type FC, useCallback, useState } from "react"
 import {
   View,
+  // eslint-disable-next-line no-restricted-imports
   TextInput,
   TouchableOpacity,
   StyleSheet,
@@ -9,8 +10,11 @@ import {
   ScrollView,
   Platform,
 } from "react-native"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
+
 import { Screen } from "@/components/Screen"
 import { Text } from "@/components/Text"
+import { createActivity } from "@/lib/activities"
 import {
   ACTIVITY_TYPE_ICON,
   ACTIVITY_TYPE_LABEL,
@@ -19,9 +23,7 @@ import {
   type ExerciseSet,
   type WorkoutData,
 } from "@/lib/activityClassification"
-import { createActivity } from "@/lib/activities"
 import type { AppStackScreenProps } from "@/navigators/navigationTypes"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 type Props = AppStackScreenProps<"SaveActivity">
 
@@ -50,7 +52,7 @@ function formatDuration(secs: number): string {
   return `${m}m`
 }
 
-export const SaveActivityScreen: React.FC<Props> = ({ route, navigation }) => {
+export const SaveActivityScreen: FC<Props> = ({ route, navigation }) => {
   const { type, trackData, healthKitWorkout } = route.params
   const insets = useSafeAreaInsets()
 
@@ -150,7 +152,17 @@ export const SaveActivityScreen: React.FC<Props> = ({ route, navigation }) => {
     } finally {
       setSaving(false)
     }
-  }, [title, type, privacy, trackData, healthKitWorkout, exercises, workoutNotes, isManualWorkout, navigation])
+  }, [
+    title,
+    type,
+    privacy,
+    trackData,
+    healthKitWorkout,
+    exercises,
+    workoutNotes,
+    isManualWorkout,
+    navigation,
+  ])
 
   const privacyOptions: PrivacyOption[] = ["private", "public", "friends"]
 
@@ -370,71 +382,107 @@ export const SaveActivityScreen: React.FC<Props> = ({ route, navigation }) => {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  addExerciseBtn: {
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
+    borderRadius: 10,
+    paddingVertical: 12,
   },
-  header: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    gap: 8,
+  addSetBtn: {
+    alignItems: "center",
+    paddingVertical: 6,
   },
   backBtn: {
     paddingVertical: 4,
   },
-  typeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 16,
-    marginBottom: 16,
+  container: {
+    flex: 1,
   },
-  typeIcon: {
-    fontSize: 24,
+  exerciseCard: {
+    backgroundColor: "#f9f9f9",
+    borderRadius: 10,
+    marginBottom: 10,
+    padding: 12,
+  },
+  exerciseHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 8,
   },
   field: {
-    paddingHorizontal: 16,
     marginBottom: 16,
+    paddingHorizontal: 16,
+  },
+  header: {
+    gap: 8,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+  },
+  input: {
+    borderColor: "#ddd",
+    borderRadius: 8,
+    borderWidth: 1,
+    fontSize: 15,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   label: {
     color: "#888",
     marginBottom: 6,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
+  privacyBtn: {
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
     borderRadius: 8,
-    paddingHorizontal: 12,
+    flex: 1,
     paddingVertical: 10,
-    fontSize: 15,
+  },
+  privacyBtnActive: {
+    backgroundColor: "#4A90D9",
   },
   privacyRow: {
     flexDirection: "row",
     gap: 8,
   },
-  privacyBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: "#f5f5f5",
-    alignItems: "center",
-  },
-  privacyBtnActive: {
-    backgroundColor: "#4A90D9",
-  },
   privacyTextActive: {
     color: "#fff",
   },
+  saveBtn: {
+    alignItems: "center",
+    backgroundColor: "#4A90D9",
+    borderRadius: 12,
+    paddingVertical: 16,
+  },
+  saveBtnText: {
+    color: "#fff",
+    fontSize: 18,
+  },
+  saveSection: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  setInput: {
+    borderColor: "#ddd",
+    borderRadius: 6,
+    borderWidth: 1,
+    flex: 1,
+    fontSize: 13,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  setRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 6,
+  },
   summaryCard: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 16,
     backgroundColor: "#f9f9f9",
     borderRadius: 12,
-  },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginTop: 8,
+    marginBottom: 16,
+    marginHorizontal: 16,
+    padding: 16,
   },
   summaryItem: {
     alignItems: "center",
@@ -443,60 +491,24 @@ const styles = StyleSheet.create({
     color: "#888",
     marginBottom: 2,
   },
-  workoutSection: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  exerciseCard: {
-    backgroundColor: "#f9f9f9",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
-  },
-  exerciseHeader: {
+  summaryRow: {
     flexDirection: "row",
+    justifyContent: "space-around",
+    marginTop: 8,
+  },
+  typeIcon: {
+    fontSize: 24,
+  },
+  typeRow: {
     alignItems: "center",
+    flexDirection: "row",
     gap: 8,
-    marginBottom: 8,
-  },
-  setRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 6,
-  },
-  setInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    fontSize: 13,
-  },
-  addSetBtn: {
-    paddingVertical: 6,
-    alignItems: "center",
-  },
-  addExerciseBtn: {
-    paddingVertical: 12,
-    alignItems: "center",
-    backgroundColor: "#f5f5f5",
-    borderRadius: 10,
-  },
-  saveSection: {
+    marginBottom: 16,
     paddingHorizontal: 16,
-    paddingTop: 8,
   },
-  saveBtn: {
-    backgroundColor: "#4A90D9",
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  saveBtnText: {
-    color: "#fff",
-    fontSize: 18,
+  workoutSection: {
+    marginBottom: 16,
+    paddingHorizontal: 16,
   },
 })
 

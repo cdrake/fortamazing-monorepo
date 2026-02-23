@@ -1,4 +1,3 @@
-import React from "react"
 import { Text } from "@/components/Text"
 import type { ActivityType } from "@/lib/activityClassification"
 import { ACTIVITY_TYPE_ICON } from "@/lib/activityClassification"

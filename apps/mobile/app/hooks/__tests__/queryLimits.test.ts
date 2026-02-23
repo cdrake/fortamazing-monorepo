@@ -7,6 +7,8 @@
  */
 
 // ---- mocks ----
+import { renderHook } from "@testing-library/react-native"
+
 const mockOnSnapshot = jest.fn((_q, onNext, _onError) => {
   // Simulate an empty snapshot so the hook doesn't throw
   onNext({ docs: [] })
@@ -24,7 +26,7 @@ jest.mock("firebase/firestore", () => ({
   query: (...args: any[]) => mockQuery(...args),
   orderBy: (field: string, dir: string) => mockOrderBy(field, dir),
   limit: (n: number) => mockLimit(n),
-  onSnapshot: (...args: any[]) => mockOnSnapshot(...args),
+  onSnapshot: (...args: any[]) => mockOnSnapshot(...(args as [any, any, any])),
   getDocs: (...args: any[]) => mockGetDocs(...args),
   QuerySnapshot: jest.fn(),
   DocumentData: jest.fn(),
@@ -47,8 +49,6 @@ jest.mock("@/lib/images", () => ({
   resolveStoragePathToDownloadUrl: jest.fn(),
 }))
 
-import { renderHook } from "@testing-library/react-native"
-
 // ---- tests ----
 
 describe("Firestore query limits", () => {
@@ -61,11 +61,7 @@ describe("Firestore query limits", () => {
     renderHook(() => useUserActivities(25))
 
     expect(mockLimit).toHaveBeenCalledWith(25)
-    expect(mockQuery).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      "__limit_25__",
-    )
+    expect(mockQuery).toHaveBeenCalledWith(expect.anything(), expect.anything(), "__limit_25__")
   })
 
   it("useUserActivities defaults to limit(100)", () => {
@@ -80,11 +76,7 @@ describe("Firestore query limits", () => {
     renderHook(() => useUserHikes(50))
 
     expect(mockLimit).toHaveBeenCalledWith(50)
-    expect(mockQuery).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      "__limit_50__",
-    )
+    expect(mockQuery).toHaveBeenCalledWith(expect.anything(), expect.anything(), "__limit_50__")
   })
 
   it("fetchUserActivities passes limit(limitCount) to query", async () => {
@@ -92,11 +84,7 @@ describe("Firestore query limits", () => {
     await fetchUserActivities("test-uid", 30)
 
     expect(mockLimit).toHaveBeenCalledWith(30)
-    expect(mockQuery).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      "__limit_30__",
-    )
+    expect(mockQuery).toHaveBeenCalledWith(expect.anything(), expect.anything(), "__limit_30__")
   })
 
   it("fetchUserActivities defaults to limit(100)", async () => {
@@ -111,10 +99,6 @@ describe("Firestore query limits", () => {
     await fetchUserHikes("test-uid", 10)
 
     expect(mockLimit).toHaveBeenCalledWith(10)
-    expect(mockQuery).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      "__limit_10__",
-    )
+    expect(mockQuery).toHaveBeenCalledWith(expect.anything(), expect.anything(), "__limit_10__")
   })
 })

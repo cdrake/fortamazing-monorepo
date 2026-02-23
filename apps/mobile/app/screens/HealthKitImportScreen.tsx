@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
   View,
   FlatList,
@@ -8,8 +8,11 @@ import {
   Alert,
   Platform,
 } from "react-native"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
+
 import { Screen } from "@/components/Screen"
 import { Text } from "@/components/Text"
+import { createActivity, listActivities } from "@/lib/activities"
 import { ACTIVITY_TYPE_ICON, ACTIVITY_TYPE_LABEL } from "@/lib/activityClassification"
 import {
   isAvailable,
@@ -17,9 +20,7 @@ import {
   fetchRecentWorkouts,
   type HealthKitWorkoutData,
 } from "@/lib/healthKit"
-import { createActivity, listActivities } from "@/lib/activities"
 import type { AppStackScreenProps } from "@/navigators/navigationTypes"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 type Props = AppStackScreenProps<"HealthKitImport">
 
@@ -46,7 +47,7 @@ function formatDate(dateStr: string): string {
   })
 }
 
-export const HealthKitImportScreen: React.FC<Props> = ({ navigation }) => {
+export const HealthKitImportScreen = ({ navigation }: Props) => {
   const insets = useSafeAreaInsets()
   const [workouts, setWorkouts] = useState<HealthKitWorkoutData[]>([])
   const [importedUuids, setImportedUuids] = useState<Set<string>>(new Set())
@@ -64,10 +65,7 @@ export const HealthKitImportScreen: React.FC<Props> = ({ navigation }) => {
     try {
       const available = await isAvailable()
       if (!available) {
-        Alert.alert(
-          "HealthKit Unavailable",
-          "Apple Health is not available on this device.",
-        )
+        Alert.alert("HealthKit Unavailable", "Apple Health is not available on this device.")
         setLoading(false)
         return
       }
@@ -165,9 +163,7 @@ export const HealthKitImportScreen: React.FC<Props> = ({ navigation }) => {
         </View>
         <Text style={styles.rowIcon}>{ACTIVITY_TYPE_ICON[item.activityType]}</Text>
         <View style={styles.rowContent}>
-          <Text weight="medium">
-            {ACTIVITY_TYPE_LABEL[item.activityType]}
-          </Text>
+          <Text weight="medium">{ACTIVITY_TYPE_LABEL[item.activityType]}</Text>
           <Text size="xs" style={{ color: "#888" }}>
             {formatDate(item.startDate)} · {formatDuration(item.duration)}
             {item.distance ? ` · ${formatDistance(item.distance)}` : ""}
@@ -240,46 +236,22 @@ export const HealthKitImportScreen: React.FC<Props> = ({ navigation }) => {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    gap: 4,
-  },
   backBtn: {
     paddingVertical: 4,
   },
   center: {
+    alignItems: "center",
     flex: 1,
     justifyContent: "center",
-    alignItems: "center",
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-    gap: 10,
-  },
-  rowImported: {
-    opacity: 0.5,
-  },
-  rowIcon: {
-    fontSize: 20,
-  },
-  rowContent: {
-    flex: 1,
-    gap: 2,
   },
   checkbox: {
-    width: 24,
-    height: 24,
+    alignItems: "center",
+    borderColor: "#ccc",
     borderRadius: 4,
     borderWidth: 2,
-    borderColor: "#ccc",
+    height: 24,
     justifyContent: "center",
-    alignItems: "center",
+    width: 24,
   },
   checkboxChecked: {
     backgroundColor: "#4A90D9",
@@ -290,26 +262,50 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "bold",
   },
+  header: {
+    gap: 4,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+  },
   importBar: {
-    position: "absolute",
+    backgroundColor: "#fff",
+    borderTopColor: "#eee",
+    borderTopWidth: 1,
     bottom: 0,
     left: 0,
-    right: 0,
     paddingHorizontal: 16,
     paddingTop: 12,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: "#eee",
+    position: "absolute",
+    right: 0,
   },
   importBtn: {
-    backgroundColor: "#4A90D9",
-    paddingVertical: 16,
-    borderRadius: 12,
     alignItems: "center",
+    backgroundColor: "#4A90D9",
+    borderRadius: 12,
+    paddingVertical: 16,
   },
   importBtnText: {
     color: "#fff",
     fontSize: 16,
+  },
+  row: {
+    alignItems: "center",
+    borderBottomColor: "#f0f0f0",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  rowContent: {
+    flex: 1,
+    gap: 2,
+  },
+  rowIcon: {
+    fontSize: 20,
+  },
+  rowImported: {
+    opacity: 0.5,
   },
 })
 

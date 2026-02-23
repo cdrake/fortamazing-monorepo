@@ -1,5 +1,5 @@
 // app/components/HikeMap.tsx — Map component for displaying hike GPS tracks
-import React, { useEffect, useRef } from "react"
+import { useEffect, useRef } from "react"
 import { View, type ViewStyle } from "react-native"
 import MapView, { Polyline } from "react-native-maps"
 

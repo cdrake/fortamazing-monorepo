@@ -1,7 +1,7 @@
 // app/components/DaySelector.tsx — Horizontal day picker for multi-day hikes
-import React from "react"
-import { ScrollView, TouchableOpacity, Text, View } from "react-native"
+import { ScrollView, TouchableOpacity, View } from "react-native"
 
+import { Text } from "@/components/Text"
 import type { DayTrack } from "@/lib/trackData"
 
 type DaySelectorProps = {

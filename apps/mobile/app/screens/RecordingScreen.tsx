@@ -1,13 +1,14 @@
-import React, { useCallback, useState } from "react"
+import { type FC, useCallback, useState } from "react"
 import { View, TouchableOpacity, StyleSheet, Alert, Platform } from "react-native"
 import MapView, { Polyline } from "react-native-maps"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
+
 import { Screen } from "@/components/Screen"
 import { Text } from "@/components/Text"
-import { ACTIVITY_TYPE_ICON, ACTIVITY_TYPE_LABEL } from "@/lib/activityClassification"
 import { useGpsRecording } from "@/hooks/useGpsRecording"
+import { ACTIVITY_TYPE_ICON, ACTIVITY_TYPE_LABEL } from "@/lib/activityClassification"
 import { computeBoundsRegion } from "@/lib/geoUtils"
 import type { AppStackScreenProps } from "@/navigators/navigationTypes"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 type Props = AppStackScreenProps<"Recording">
 
@@ -32,7 +33,7 @@ function formatPace(meters: number, secs: number): string {
   return `${whole}:${String(frac).padStart(2, "0")} /km`
 }
 
-export const RecordingScreen: React.FC<Props> = ({ route, navigation }) => {
+export const RecordingScreen: FC<Props> = ({ route, navigation }) => {
   const { type } = route.params
   const insets = useSafeAreaInsets()
   const { isRecording, points, elapsed, distance, currentLocation, start, stop, discard } =
@@ -162,25 +163,45 @@ export const RecordingScreen: React.FC<Props> = ({ route, navigation }) => {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+  btnText: {
+    color: "#fff",
+    fontSize: 18,
   },
-  typeIcon: {
-    fontSize: 24,
+  controlRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  controls: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  discardBtn: {
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
+    borderRadius: 12,
+    flex: 1,
+    paddingVertical: 16,
+  },
+  discardBtnText: {
+    color: "#666",
+    fontSize: 18,
+  },
+  header: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+    paddingBottom: 8,
+    paddingHorizontal: 16,
   },
   map: {
     flex: 1,
   },
-  stats: {
-    flexDirection: "row",
-    justifyContent: "space-around",
+  startBtn: {
+    alignItems: "center",
+    backgroundColor: "#4CAF50",
+    borderRadius: 12,
     paddingVertical: 16,
-    paddingHorizontal: 8,
-    backgroundColor: "#fff",
   },
   statItem: {
     alignItems: "center",
@@ -189,42 +210,22 @@ const styles = StyleSheet.create({
     color: "#888",
     marginBottom: 2,
   },
-  controls: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
+  stats: {
     backgroundColor: "#fff",
-  },
-  controlRow: {
     flexDirection: "row",
-    gap: 12,
-  },
-  startBtn: {
-    backgroundColor: "#4CAF50",
+    justifyContent: "space-around",
+    paddingHorizontal: 8,
     paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
   },
   stopBtn: {
-    flex: 1,
+    alignItems: "center",
     backgroundColor: "#E53935",
-    paddingVertical: 16,
     borderRadius: 12,
-    alignItems: "center",
-  },
-  discardBtn: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
     paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
   },
-  btnText: {
-    color: "#fff",
-    fontSize: 18,
-  },
-  discardBtnText: {
-    color: "#666",
-    fontSize: 18,
+  typeIcon: {
+    fontSize: 24,
   },
 })
 

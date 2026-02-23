@@ -1,4 +1,5 @@
 import { NativeModules, Platform } from "react-native"
+
 import type { ActivityType } from "@/lib/activityClassification"
 
 // Access the native module directly to check if it's available

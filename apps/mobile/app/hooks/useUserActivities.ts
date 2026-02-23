@@ -1,8 +1,18 @@
 // src/hooks/useUserActivities.ts
 import { useEffect, useState } from "react"
-import { collection, query, orderBy, onSnapshot, QuerySnapshot, DocumentData, limit } from "firebase/firestore"
-import { db, auth } from "../config/firebase"
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  QuerySnapshot,
+  DocumentData,
+  limit,
+} from "firebase/firestore"
+
 import { resolveStoragePathToDownloadUrl } from "@/lib/images"
+
+import { db, auth } from "../config/firebase"
 
 export type ActivityItem = {
   id: string

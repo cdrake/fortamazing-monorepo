@@ -1,7 +1,7 @@
 // app/components/TrackStatsBar.tsx — Compact stats summary for track distance/elevation
-import React from "react"
-import { View, Text } from "react-native"
+import { View } from "react-native"
 
+import { Text } from "@/components/Text"
 import type { DayTrack } from "@/lib/trackData"
 
 type TrackStatsBarProps = {

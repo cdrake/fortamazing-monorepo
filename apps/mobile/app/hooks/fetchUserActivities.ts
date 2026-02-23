@@ -1,6 +1,7 @@
 // src/hooks/fetchUserActivities.ts
 import { getDocs, collection, query, orderBy, limit } from "firebase/firestore"
 import { getDownloadURL, getStorage, ref as storageRef } from "firebase/storage"
+
 import { db } from "@/config/firebase"
 import { app as firebaseApp } from "@/config/firebase"
 
@@ -41,7 +42,10 @@ async function gsPathToDownloadUrlWeb(gsPathOrPath?: string) {
 /**
  * Fetch user activities once (not realtime). Returns MobileActivity[] with thumbnailUrl set.
  */
-export async function fetchUserActivities(userUid: string, limitCount = 100): Promise<MobileActivity[]> {
+export async function fetchUserActivities(
+  userUid: string,
+  limitCount = 100,
+): Promise<MobileActivity[]> {
   const activitiesRef = collection(db, "users", userUid, "activities")
   const q = query(activitiesRef, orderBy("createdAt", "desc"), limit(limitCount))
   const snap = await getDocs(q)
@@ -49,16 +53,21 @@ export async function fetchUserActivities(userUid: string, limitCount = 100): Pr
   const items = await Promise.all(
     snap.docs.map(async (docSnap) => {
       const data = docSnap.data() as any
-      const images = Array.isArray(data.images) ? data.images : (Array.isArray(data.photos) ? data.photos : [])
+      const images = Array.isArray(data.images)
+        ? data.images
+        : Array.isArray(data.photos)
+          ? data.photos
+          : []
 
       // Resolve each image to a usable URL
       const resolved = await Promise.all(
         images.map(async (img: any) => {
           if (!img) return undefined
           if (img.url && typeof img.url === "string") return img.url
-          if (img.path && typeof img.path === "string") return await gsPathToDownloadUrlWeb(img.path)
+          if (img.path && typeof img.path === "string")
+            return await gsPathToDownloadUrlWeb(img.path)
           return undefined
-        })
+        }),
       )
 
       const presentUrls = resolved.filter(Boolean) as string[]
@@ -83,7 +92,7 @@ export async function fetchUserActivities(userUid: string, limitCount = 100): Pr
       }
 
       return item
-    })
+    }),
   )
 
   return items

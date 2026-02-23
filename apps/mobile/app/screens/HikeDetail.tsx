@@ -1,8 +1,7 @@
 // src/screens/HikeDetail.tsx
-import React, { JSX, useEffect, useState } from "react"
+import { JSX, useEffect, useState } from "react"
 import {
   View,
-  Text as RNText,
   ScrollView,
   Image,
   ActivityIndicator,
@@ -15,16 +14,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 import DaySelector from "@/components/DaySelector"
 import HikeMap from "@/components/HikeMap"
 import ImageUploadButton from "@/components/ImageUploadButton"
+import { Text } from "@/components/Text"
 import TrackStatsBar from "@/components/TrackStatsBar"
 import WorkoutDataView from "@/components/WorkoutDataView"
 import { auth as firebaseAuth } from "@/config/firebase"
-import type { LatLng } from "@/lib/geoUtils"
 import { getActivity } from "@/lib/activities"
+import type { WorkoutData, ActivityType } from "@/lib/activityClassification"
+import { ACTIVITY_TYPE_ICON } from "@/lib/activityClassification"
+import type { LatLng } from "@/lib/geoUtils"
 import { listImagesForHike } from "@/lib/images"
 import { loadHikeTrackData, type DayTrack, type HikeTrackData } from "@/lib/trackData"
 import { useAppTheme } from "@/theme/context"
-import type { WorkoutData, ActivityType } from "@/lib/activityClassification"
-import { ACTIVITY_TYPE_ICON } from "@/lib/activityClassification"
 
 type RouteParams = {
   HikeDetail: { hikeId: string }
@@ -129,18 +129,18 @@ export default function HikeDetail(): JSX.Element {
         accessibilityRole="button"
         accessibilityLabel="Go home"
       >
-        <RNText style={themed({ fontSize: 16 })}>← Home</RNText>
+        <Text style={themed({ fontSize: 16 })}>← Home</Text>
       </TouchableOpacity>
 
       <ScrollView
         scrollEnabled={scrollEnabled}
         contentContainerStyle={themed({ padding: 16, paddingTop: (insets.top ?? 0) + 56 })}
       >
-        <RNText style={themed({ fontSize: 20, fontWeight: "700", marginBottom: 8 })}>
+        <Text weight="bold" style={themed({ fontSize: 20, marginBottom: 8 })}>
           {ACTIVITY_TYPE_ICON[(hike?.type as ActivityType) ?? "other"] ?? "🏔️"}{" "}
           {hike?.title ?? "Untitled"}
-        </RNText>
-        <RNText style={themed({ marginBottom: 12 })}>{hike?.description ?? ""}</RNText>
+        </Text>
+        <Text style={themed({ marginBottom: 12 })}>{hike?.description ?? ""}</Text>
 
         {/* Map and track visualization */}
         {dayTracks.length > 0 && (
@@ -167,8 +167,18 @@ export default function HikeDetail(): JSX.Element {
 
         {/* Workout exercises section (additive — shown if workout data exists) */}
         {hike?.workout && (hike.workout as WorkoutData).exercises?.length > 0 && (
-          <View style={{ marginBottom: 16, padding: 12, borderWidth: 1, borderColor: "#eee", borderRadius: 12 }}>
-            <RNText style={themed({ fontWeight: "600", fontSize: 16, marginBottom: 8 })}>Exercises</RNText>
+          <View
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              borderWidth: 1,
+              borderColor: "#eee",
+              borderRadius: 12,
+            }}
+          >
+            <Text weight="semiBold" style={themed({ fontSize: 16, marginBottom: 8 })}>
+              Exercises
+            </Text>
             <WorkoutDataView workout={hike.workout as WorkoutData} />
           </View>
         )}
@@ -180,12 +190,12 @@ export default function HikeDetail(): JSX.Element {
           }}
         />
 
-        <RNText style={themed({ marginTop: 16, marginBottom: 8, fontWeight: "600" })}>
+        <Text weight="semiBold" style={themed({ marginTop: 16, marginBottom: 8 })}>
           Photos
-        </RNText>
+        </Text>
 
         {images.length === 0 ? (
-          <RNText>No photos yet</RNText>
+          <Text>No photos yet</Text>
         ) : (
           images.map((img) => (
             <Image

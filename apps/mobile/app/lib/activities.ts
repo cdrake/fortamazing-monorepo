@@ -9,6 +9,7 @@ import {
   getDoc,
   serverTimestamp,
 } from "firebase/firestore"
+
 import { db, auth } from "@/config/firebase"
 
 export type Activity = {
@@ -35,7 +36,7 @@ export type Activity = {
  * Helper to get the collection ref for users/{uid}/activities
  */
 function activitiesCollectionFor(ownerUid?: string) {
-  const uid = ownerUid ?? (auth?.currentUser?.uid ?? null)
+  const uid = ownerUid ?? auth?.currentUser?.uid ?? null
   if (!uid) {
     throw new Error("ownerUid not supplied and no authenticated user available")
   }
@@ -57,7 +58,7 @@ export async function listActivities(ownerUid?: string): Promise<Activity[]> {
  */
 export async function getActivity(activityId: string, ownerUid?: string): Promise<Activity | null> {
   if (!activityId) throw new Error("activityId required")
-  const uid = ownerUid ?? (auth?.currentUser?.uid ?? null)
+  const uid = ownerUid ?? auth?.currentUser?.uid ?? null
   if (!uid) throw new Error("ownerUid not supplied and no authenticated user available")
   const ref = doc(db, "users", uid, "activities", activityId)
   const snap = await getDoc(ref)
@@ -68,8 +69,10 @@ export async function getActivity(activityId: string, ownerUid?: string): Promis
 /**
  * createActivity
  */
-export async function createActivity(payload: Partial<Activity> & { ownerId?: string; ownerUid?: string }) {
-  const ownerUid = payload.ownerUid ?? payload.ownerId ?? (auth?.currentUser?.uid ?? null)
+export async function createActivity(
+  payload: Partial<Activity> & { ownerId?: string; ownerUid?: string },
+) {
+  const ownerUid = payload.ownerUid ?? payload.ownerId ?? auth?.currentUser?.uid ?? null
   if (!ownerUid) throw new Error("ownerUid must be provided or user must be signed in")
   const ref = await addDoc(collection(db, "users", ownerUid, "activities"), {
     ...payload,

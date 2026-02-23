@@ -1,5 +1,7 @@
-import React from "react"
+import type { FC } from "react"
 import { View, TouchableOpacity, StyleSheet, Platform } from "react-native"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
+
 import { Screen } from "@/components/Screen"
 import { Text } from "@/components/Text"
 import {
@@ -8,14 +10,13 @@ import {
   type ActivityType,
 } from "@/lib/activityClassification"
 import type { AppStackScreenProps } from "@/navigators/navigationTypes"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 type Props = AppStackScreenProps<"NewActivity">
 
 const GPS_TYPES: ActivityType[] = ["hike", "walk", "run", "bike", "climb", "ski", "kayak", "swim"]
 const ALL_TYPES: ActivityType[] = [...GPS_TYPES, "workout", "other"]
 
-export const NewActivityScreen: React.FC<Props> = ({ navigation }) => {
+export const NewActivityScreen: FC<Props> = ({ navigation }) => {
   const insets = useSafeAreaInsets()
 
   const handleSelect = (type: ActivityType) => {
@@ -68,46 +69,46 @@ export const NewActivityScreen: React.FC<Props> = ({ navigation }) => {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    gap: 8,
-  },
   backBtn: {
     paddingVertical: 4,
   },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    paddingHorizontal: 12,
     gap: 8,
+    paddingHorizontal: 12,
   },
-  typeCard: {
-    width: "22%",
-    aspectRatio: 1,
-    borderRadius: 12,
-    backgroundColor: "#f5f5f5",
-    justifyContent: "center",
+  header: {
+    gap: 8,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+  },
+  importBtn: {
     alignItems: "center",
-    gap: 4,
+    backgroundColor: "#f5f5f5",
+    borderRadius: 12,
+    flexDirection: "row",
+    gap: 10,
+    padding: 16,
   },
-  typeIcon: {
-    fontSize: 28,
+  importIcon: {
+    fontSize: 22,
   },
   importSection: {
     paddingHorizontal: 16,
     paddingTop: 24,
   },
-  importBtn: {
-    flexDirection: "row",
+  typeCard: {
     alignItems: "center",
-    gap: 10,
-    padding: 16,
-    borderRadius: 12,
+    aspectRatio: 1,
     backgroundColor: "#f5f5f5",
+    borderRadius: 12,
+    gap: 4,
+    justifyContent: "center",
+    width: "22%",
   },
-  importIcon: {
-    fontSize: 22,
+  typeIcon: {
+    fontSize: 28,
   },
 })
 

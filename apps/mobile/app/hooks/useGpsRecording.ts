@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import type { GpsTrackResult, RecordingState } from "@/lib/gpsTypes"
+
 import {
   getState,
   subscribe,
@@ -8,6 +8,7 @@ import {
   discardRecording,
   resumeRecording,
 } from "@/lib/gpsRecorder"
+import type { GpsTrackResult, RecordingState } from "@/lib/gpsTypes"
 
 export function useGpsRecording() {
   const [recState, setRecState] = useState<RecordingState>(getState)

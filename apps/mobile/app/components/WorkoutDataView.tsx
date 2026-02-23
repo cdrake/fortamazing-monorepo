@@ -1,5 +1,5 @@
-import React from "react"
 import { View } from "react-native"
+
 import { Text } from "@/components/Text"
 import type { WorkoutData } from "@/lib/activityClassification"
 
@@ -39,9 +39,7 @@ export default function WorkoutDataView({ workout }: Props) {
                 {set.weight != null ? ` × ${set.weight} kg` : ""}
                 {set.durationSeconds != null ? ` ${set.durationSeconds}s` : ""}
               </Text>
-              {set.notes ? (
-                <Text style={{ fontSize: 11, color: "#999" }}>{set.notes}</Text>
-              ) : null}
+              {set.notes ? <Text style={{ fontSize: 11, color: "#999" }}>{set.notes}</Text> : null}
             </View>
           ))}
         </View>
