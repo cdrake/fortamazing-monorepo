@@ -132,9 +132,9 @@ export async function createHikeWithStorage(params: {
   const uid = ownerUid ?? authUser?.uid;
   if (!uid) throw new Error("No owner UID available (sign-in required)");
 
-  // create new doc id under users/{uid}/hikes/{id}
-  const hikesColRef = collection(db, "users", uid, "hikes");
-  const newDocRef = doc(hikesColRef);
+  // create new doc id under users/{uid}/activities/{id}
+  const activitiesColRef = collection(db, "users", uid, "activities");
+  const newDocRef = doc(activitiesColRef);
   const hikeId = newDocRef.id;
 
   const uploadedDays: DayEntry[] = [];
@@ -144,7 +144,7 @@ export async function createHikeWithStorage(params: {
   for (let i = 0; i < dayTracks.length; i++) {
     const d = dayTracks[i];
     if (typeof d.geojson !== "undefined" && d.geojson !== null) {
-      const filename = `users/${uid}/hikes/${hikeId}/days/day-${Date.now()}-${i}.geojson`;
+      const filename = `activities/${uid}/${hikeId}/days/day-${Date.now()}-${i}.geojson`;
       const blob = new Blob([JSON.stringify(d.geojson)], { type: "application/json" });
       const uploaded = await _uploadToStorage(blob, filename, storeDownloadUrls);
       const entry: DayEntry = {
@@ -167,7 +167,7 @@ export async function createHikeWithStorage(params: {
   let combinedPath: string | undefined = undefined;
   let combinedUrl: string | undefined = undefined;
   if (typeof combinedGeojson !== "undefined" && combinedGeojson !== null) {
-    const filename = `users/${uid}/hikes/${hikeId}/combined/${Date.now()}.geojson`;
+    const filename = `activities/${uid}/${hikeId}/combined/${Date.now()}.geojson`;
     const blob = new Blob([JSON.stringify(combinedGeojson)], { type: "application/json" });
     const uploaded = await _uploadToStorage(blob, filename, storeDownloadUrls);
     combinedPath = uploaded.gsPath;
@@ -177,20 +177,26 @@ export async function createHikeWithStorage(params: {
   // 3) upload images (if any)
   for (let i = 0; i < imageFiles.length; i++) {
     const f = imageFiles[i];
-    const dest = `users/${uid}/hikes/${hikeId}/images/${Date.now()}-${i}-${f.name}`;
+    const dest = `activities/${uid}/${hikeId}/images/${Date.now()}-${i}-${f.name}`;
     const uploaded = await _uploadToStorage(f, dest, storeDownloadUrls);
     uploadedImages.push({ path: uploaded.gsPath, url: uploaded.downloadUrl });
   }
 
-  // 4) create the hike document
+  // 4) create the activity document
   const docPayload: Record<string, unknown> = {
     title: typeof title === "string" ? title : `Hike ${new Date().toISOString()}`,
+    description: typeof descriptionMd === "string" ? descriptionMd : "",
     descriptionMd: typeof descriptionMd === "string" ? descriptionMd : "",
+    ownerId: uid,
+    type: "hike",
     owner: { uid },
     createdAt: serverTimestamp(),
+    updatedAt: new Date().toISOString(),
+    privacy: visibility === "public" ? "public" : "private",
     public: visibility === "public",
     days: uploadedDays.length ? uploadedDays : [],
     images: uploadedImages.length ? uploadedImages : [],
+    photos: uploadedImages.length ? uploadedImages : [],
   };
 
   if (combinedPath) docPayload.combinedPath = combinedPath;
@@ -228,7 +234,7 @@ export async function appendToHikeWithStorage(options: {
   const uid = ownerUid ?? authUser?.uid;
   if (!uid) throw new Error("No owner UID available (sign-in required)");
 
-  const hikeDocRef = doc(db, "users", uid, "hikes", hikeId);
+  const hikeDocRef = doc(db, "users", uid, "activities", hikeId);
   const hikeDocSnap = await getDoc(hikeDocRef);
   if (!hikeDocSnap.exists()) throw new Error("Hike doc not found");
 
@@ -239,7 +245,7 @@ export async function appendToHikeWithStorage(options: {
   for (let i = 0; i < dayTracks.length; i++) {
     const d = dayTracks[i];
     if (typeof d.geojson !== "undefined" && d.geojson !== null) {
-      const filename = `users/${uid}/hikes/${hikeId}/days/day-${Date.now()}-${i}.geojson`;
+      const filename = `activities/${uid}/${hikeId}/days/day-${Date.now()}-${i}.geojson`;
       const blob = new Blob([JSON.stringify(d.geojson)], { type: "application/json" });
       const uploaded = await _uploadToStorage(blob, filename, storeDownloadUrls);
       uploadedDays.push({
@@ -266,7 +272,7 @@ export async function appendToHikeWithStorage(options: {
   // upload images
   for (let i = 0; i < imageFiles.length; i++) {
     const f = imageFiles[i];
-    const dest = `users/${uid}/hikes/${hikeId}/images/${Date.now()}-${i}-${f.name}`;
+    const dest = `activities/${uid}/${hikeId}/images/${Date.now()}-${i}-${f.name}`;
     // eslint-disable-next-line no-console
     console.log("attempted path:", dest);
     const uploaded = await _uploadToStorage(f, dest, storeDownloadUrls);
