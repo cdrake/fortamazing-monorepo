@@ -22,8 +22,8 @@ export type AppStackParamList = {
   Demo: NavigatorScreenParams<DemoTabParamList>
 
   // 🔥 Your screens go here
-  Home: undefined;
-  HikeDetail: { hikeId: string };
+  Home: undefined
+  HikeDetail: { hikeId: string }
   // IGNITE_GENERATOR_ANCHOR_APP_STACK_PARAM_LIST
 }
 

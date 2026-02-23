@@ -10,7 +10,7 @@
  * The app navigation resides in ./app/navigators, so head over there
  * if you're interested in adding screens and navigators.
  */
-import "@/config/firebase";
+import "@/config/firebase"
 
 if (__DEV__) {
   // Load Reactotron in development only.

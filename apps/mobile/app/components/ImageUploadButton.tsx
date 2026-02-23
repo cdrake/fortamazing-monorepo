@@ -1,8 +1,8 @@
-import React, { useState } from "react"
+import { useState } from "react"
 import { View, ActivityIndicator } from "react-native"
-import { Button } from "@/components/Button"
 import * as ImagePicker from "expo-image-picker"
 
+import { Button } from "@/components/Button"
 import { uploadImageFromUri } from "@/lib/storage"
 // import { addImageMeta } from "@/lib/images"
 import { useAppTheme } from "@/theme/context"
@@ -12,10 +12,7 @@ type ImageUploadButtonProps = {
   onUploadComplete?: () => void
 }
 
-export default function ImageUploadButton({
-  hikeId,
-  onUploadComplete,
-}: ImageUploadButtonProps) {
+export default function ImageUploadButton({ hikeId, onUploadComplete }: ImageUploadButtonProps) {
   const [loading, setLoading] = useState(false)
   const { themed } = useAppTheme()
 
@@ -35,10 +32,7 @@ export default function ImageUploadButton({
 
       setLoading(true)
 
-      const filename =
-        asset.fileName ??
-        asset.uri.split("/").pop() ??
-        `photo-${Date.now()}.jpg`
+      const filename = asset.fileName ?? asset.uri.split("/").pop() ?? `photo-${Date.now()}.jpg`
 
       const remotePath = `hikes/${hikeId}/images/${Date.now()}_${filename}`
 
@@ -46,11 +40,11 @@ export default function ImageUploadButton({
       const url = await uploadImageFromUri(asset.uri, remotePath)
 
       // Save metadata in Firestore
-    //   await addImageMeta(hikeId, {
-    //     url,
-    //     filename,
-    //   })
-      console.log('addImageMeta is currently disabled; uploaded image URL:', url)
+      //   await addImageMeta(hikeId, {
+      //     url,
+      //     filename,
+      //   })
+      console.log("addImageMeta is currently disabled; uploaded image URL:", url)
       onUploadComplete?.()
     } catch (error) {
       console.warn("Image upload failed", error)
@@ -61,14 +55,7 @@ export default function ImageUploadButton({
 
   return (
     <View style={themed({ marginTop: 12 })}>
-      {loading ? (
-        <ActivityIndicator />
-      ) : (
-        <Button
-          text="Upload Photo"
-          onPress={pickAndUpload}
-        />
-      )}
+      {loading ? <ActivityIndicator /> : <Button text="Upload Photo" onPress={pickAndUpload} />}
     </View>
   )
 }

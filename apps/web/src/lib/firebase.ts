@@ -2,7 +2,8 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, User, sendSignInLinkToEmail, ActionCodeSettings, sendEmailVerification, FacebookAuthProvider, signInWithRedirect } from "firebase/auth";
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, getDoc, query, where, setDoc, updateDoc, orderBy } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-export type { UserProfile } from "@fortamazing/lib/types";
+import type { UserProfile } from "@fortamazing/lib/types";
+export type { UserProfile };
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -159,7 +160,7 @@ const fetchPosts = async ({
     for (let i = 1; i < arrayFilters.length; i++) {
       const { field, values } = arrayFilters[i];
       results = results.filter((post) => {
-        const arr = (post as Record<string, unknown>)[field];
+        const arr = (post as unknown as Record<string, unknown>)[field];
         if (!Array.isArray(arr)) return false;
         return values.some((v) => arr.includes(v));
       });

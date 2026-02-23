@@ -1,21 +1,21 @@
 // src/screens/HikesList.tsx
-import React from "react";
-import { View, FlatList, Image, TouchableOpacity, ActivityIndicator } from "react-native";
-import { Text } from "@/components/Text";
-import { Screen } from "@/components/Screen";
-import { useUserHikes } from "@/hooks/useUserHikes";
-import type { AppStackScreenProps } from "@/navigators/navigationTypes";
-import { useAppTheme } from "@/theme/context";
+import { View, FlatList, Image, TouchableOpacity, ActivityIndicator } from "react-native"
 
-type Props = AppStackScreenProps<"Home">; // change route name if needed
+import { Screen } from "@/components/Screen"
+import { Text } from "@/components/Text"
+import { useUserHikes } from "@/hooks/useUserHikes"
+import type { AppStackScreenProps } from "@/navigators/navigationTypes"
+import { useAppTheme } from "@/theme/context"
+
+type Props = AppStackScreenProps<"Home"> // change route name if needed
 
 export default function HikesList({ navigation }: Props) {
-  const { hikes, loading, error } = useUserHikes();
-  const { themed } = useAppTheme();
+  const { hikes, loading, error } = useUserHikes()
+  const { themed } = useAppTheme()
 
   function renderItem({ item }: { item: any }) {
-    console.log("[HikesList] rendering item:", item);
-    const thumb = (item.resolvedImageUrls && item.resolvedImageUrls[0]) ?? null;
+    console.log("[HikesList] rendering item:", item)
+    const thumb = (item.resolvedImageUrls && item.resolvedImageUrls[0]) ?? null
 
     return (
       <TouchableOpacity
@@ -57,7 +57,7 @@ export default function HikesList({ navigation }: Props) {
           </Text>
         </View>
       </TouchableOpacity>
-    );
+    )
   }
 
   return (
@@ -77,5 +77,5 @@ export default function HikesList({ navigation }: Props) {
         contentContainerStyle={{ paddingBottom: 120 }}
       />
     </Screen>
-  );
+  )
 }
