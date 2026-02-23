@@ -1,7 +1,7 @@
 {
   "name": "fortamazing-monorepo",
   "private": true,
-  "packageManager": "pnpm@9.0.0",
+  "packageManager": "pnpm@9.14.2",
   "devDependencies": {
     "concurrently": "^8.2.2",
     "turbo": "^2.0.0"

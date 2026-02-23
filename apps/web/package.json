@@ -8,8 +8,8 @@
     "build": "next build",
     "predeploy": "npm run build && cp .next/next-font-manifest.json .next/server/",
     "start": "next start",
-    "lint": "next lint",
-    "lint:fix": "next lint --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "export": "next export",
     "prestart": "next build"
   },
