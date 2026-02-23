@@ -27,7 +27,7 @@
   "ios": {
     "icon": "./assets/images/app-icon-ios.png",
     "supportsTablet": true,
-    "buildNumber": "5",
+    "buildNumber": "6",
     "bundleIdentifier": "com.fortamazing.app",
     "privacyManifests": {
       "NSPrivacyAccessedAPITypes": [
