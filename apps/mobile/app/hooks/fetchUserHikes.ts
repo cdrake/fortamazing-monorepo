@@ -1,5 +1,5 @@
 // src/hooks/fetchUserHikes.ts
-import { getDocs, collection, query, orderBy } from "firebase/firestore";
+import { getDocs, collection, query, orderBy, limit } from "firebase/firestore";
 import { getDownloadURL, getStorage, ref as storageRef } from "firebase/storage";
 import { db } from "@/config/firebase"; // keep your existing exports
 import { app as firebaseApp } from "@/config/firebase"; // ensure this is exported from your config
@@ -40,7 +40,7 @@ async function gsPathToDownloadUrlWeb(gsPathOrPath?: string) {
  */
 export async function fetchUserHikes(userUid: string, limitCount = 100): Promise<MobileHike[]> {
   const hikesRef = collection(db, "users", userUid, "hikes");
-  const q = query(hikesRef, orderBy("createdAt", "desc"));
+  const q = query(hikesRef, orderBy("createdAt", "desc"), limit(limitCount));
   const snap = await getDocs(q);
 
   const items = await Promise.all(

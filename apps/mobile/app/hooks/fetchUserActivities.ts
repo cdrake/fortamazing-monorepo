@@ -1,5 +1,5 @@
 // src/hooks/fetchUserActivities.ts
-import { getDocs, collection, query, orderBy } from "firebase/firestore"
+import { getDocs, collection, query, orderBy, limit } from "firebase/firestore"
 import { getDownloadURL, getStorage, ref as storageRef } from "firebase/storage"
 import { db } from "@/config/firebase"
 import { app as firebaseApp } from "@/config/firebase"
@@ -43,7 +43,7 @@ async function gsPathToDownloadUrlWeb(gsPathOrPath?: string) {
  */
 export async function fetchUserActivities(userUid: string, limitCount = 100): Promise<MobileActivity[]> {
   const activitiesRef = collection(db, "users", userUid, "activities")
-  const q = query(activitiesRef, orderBy("createdAt", "desc"))
+  const q = query(activitiesRef, orderBy("createdAt", "desc"), limit(limitCount))
   const snap = await getDocs(q)
 
   const items = await Promise.all(
