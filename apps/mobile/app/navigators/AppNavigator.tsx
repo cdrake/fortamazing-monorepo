@@ -4,38 +4,41 @@
  * Generally speaking, it will contain an auth flow (registration, login, forgot password)
  * and a "main" flow which the user will use once logged in.
  */
-import React from "react";
-import { NavigationContainer } from "@react-navigation/native";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { NavigationContainer } from "@react-navigation/native"
+import { createNativeStackNavigator } from "@react-navigation/native-stack"
 
-import Config from "@/config";
-import { useAuth } from "@/context/AuthContext";
-import { ErrorBoundary } from "@/screens/ErrorScreen/ErrorBoundary";
-import { LoginScreen } from "@/screens/LoginScreen";
-import { WelcomeScreen } from "@/screens/WelcomeScreen";
-import { useAppTheme } from "@/theme/context";
+import Config from "@/config"
+import { useAuth } from "@/context/AuthContext"
+import { ErrorBoundary } from "@/screens/ErrorScreen/ErrorBoundary"
+import { HealthKitImportScreen } from "@/screens/HealthKitImportScreen"
+import HikeDetail from "@/screens/HikeDetail"
+import HomeScreen from "@/screens/HomeScreen"
+import { LoginScreen } from "@/screens/LoginScreen"
+import { NewActivityScreen } from "@/screens/NewActivityScreen"
+import { RecordingScreen } from "@/screens/RecordingScreen"
+import { SaveActivityScreen } from "@/screens/SaveActivityScreen"
+import { WelcomeScreen } from "@/screens/WelcomeScreen"
+import { useAppTheme } from "@/theme/context"
 
-import { DemoNavigator } from "./DemoNavigator";
-import HomeScreen from "@/screens/HomeScreen";
-import HikeDetail from "@/screens/HikeDetail";
-import type { AppStackParamList, NavigationProps } from "./navigationTypes";
-import { navigationRef, useBackButtonHandler } from "./navigationUtilities";
+import { DemoNavigator } from "./DemoNavigator"
+import type { AppStackParamList, NavigationProps } from "./navigationTypes"
+import { navigationRef, useBackButtonHandler } from "./navigationUtilities"
 
 /**
  * This is a list of all the route names that will exit the app if the back button
  * is pressed while in that screen. Only affects Android.
  */
-const exitRoutes = Config.exitRoutes;
+const exitRoutes = Config.exitRoutes
 
 // Documentation: https://reactnavigation.org/docs/stack-navigator/
-const Stack = createNativeStackNavigator<AppStackParamList>();
+const Stack = createNativeStackNavigator<AppStackParamList>()
 
 const AppStack = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth()
 
   const {
     theme: { colors },
-  } = useAppTheme();
+  } = useAppTheme()
 
   return (
     <Stack.Navigator
@@ -53,6 +56,11 @@ const AppStack = () => {
           {/* Primary logged-in screens */}
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="HikeDetail" component={HikeDetail} />
+          <Stack.Screen name="ActivityDetail" component={HikeDetail} />
+          <Stack.Screen name="NewActivity" component={NewActivityScreen} />
+          <Stack.Screen name="Recording" component={RecordingScreen} />
+          <Stack.Screen name="SaveActivity" component={SaveActivityScreen} />
+          <Stack.Screen name="HealthKitImport" component={HealthKitImportScreen} />
 
           {/* keep your existing welcome/demo screens if still useful */}
           <Stack.Screen name="Welcome" component={WelcomeScreen} />
@@ -65,16 +73,16 @@ const AppStack = () => {
         </>
       )}
 
-      {/** 🔥 Your screens go here */}
+      {/** Your screens go here */}
       {/* IGNITE_GENERATOR_ANCHOR_APP_STACK_SCREENS */}
     </Stack.Navigator>
-  );
-};
+  )
+}
 
 export const AppNavigator = (props: NavigationProps) => {
-  const { navigationTheme } = useAppTheme();
+  const { navigationTheme } = useAppTheme()
 
-  useBackButtonHandler((routeName) => exitRoutes.includes(routeName));
+  useBackButtonHandler((routeName) => exitRoutes.includes(routeName))
 
   return (
     <NavigationContainer ref={navigationRef} theme={navigationTheme} {...props}>
@@ -82,5 +90,5 @@ export const AppNavigator = (props: NavigationProps) => {
         <AppStack />
       </ErrorBoundary>
     </NavigationContainer>
-  );
-};
+  )
+}

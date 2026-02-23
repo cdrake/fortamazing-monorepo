@@ -1,8 +1,7 @@
 'use client'
 import useSWR from 'swr'
-import { auth, db, collection, query, where, getDocs, doc, getDoc, updateDoc } from '../../../lib/firebase'
+import { auth, db, collection, query, where, getDocs, doc, getDoc, updateDoc, listActivities, type ActivityDoc } from '../../../lib/firebase'
 import Image from 'next/image'
-import PostList from '@/components/PostList'
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { onAuthStateChanged, User } from 'firebase/auth'
@@ -139,8 +138,8 @@ export default function UserProfilePage() {
         </div>
       </div>
 
-      <h2 className="text-xl font-semibold mb-4">Posts by {userProfile.name || username}</h2>
-      <PostList posts={[]} isSocialAdmin={false} />
+      <h2 className="text-xl font-semibold mb-4">Activities by {userProfile.name || username}</h2>
+      <p className="text-gray-500">Activity feed coming soon.</p>
     </div>
   )
 }

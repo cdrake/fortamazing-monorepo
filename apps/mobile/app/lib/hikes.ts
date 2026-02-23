@@ -2,36 +2,36 @@
 import {
   collection,
   query,
-  where,
   orderBy,
   getDocs,
   addDoc,
   doc,
   getDoc,
   serverTimestamp,
-} from "firebase/firestore";
-import { db, auth } from "@/config/firebase";
+} from "firebase/firestore"
+
+import { db, auth } from "@/config/firebase"
 
 export type Hike = {
-  id?: string;
-  title?: string;
-  owner?: any; // could be uid string or owner object { uid, displayName, email }
-  createdAt?: any;
-  description?: string;
-  bounds?: { north: number; south: number; east: number; west: number } | null;
+  id?: string
+  title?: string
+  owner?: any // could be uid string or owner object { uid, displayName, email }
+  createdAt?: any
+  description?: string
+  bounds?: { north: number; south: number; east: number; west: number } | null
   // add other fields your web app uses
-};
+}
 
 /**
  * Helper to get the collection ref for users/{uid}/hikes
  * ownerUid optional -> fall back to current signed-in user
  */
 function hikesCollectionFor(ownerUid?: string) {
-  const uid = ownerUid ?? (auth?.currentUser?.uid ?? null);
+  const uid = ownerUid ?? auth?.currentUser?.uid ?? null
   if (!uid) {
-    throw new Error("ownerUid not supplied and no authenticated user available");
+    throw new Error("ownerUid not supplied and no authenticated user available")
   }
-  return collection(db, "users", uid, "hikes");
+  return collection(db, "users", uid, "hikes")
 }
 
 /**
@@ -40,10 +40,10 @@ function hikesCollectionFor(ownerUid?: string) {
  * NOTE: this mirrors the paths used by the rest of the app and your security rules.
  */
 export async function listHikes(ownerUid?: string): Promise<Hike[]> {
-  const col = hikesCollectionFor(ownerUid);
-  const q = query(col, orderBy("createdAt", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Hike) }));
+  const col = hikesCollectionFor(ownerUid)
+  const q = query(col, orderBy("createdAt", "desc"))
+  const snap = await getDocs(q)
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Hike) }))
 }
 
 /**
@@ -52,13 +52,13 @@ export async function listHikes(ownerUid?: string): Promise<Hike[]> {
  * ownerUid optional -> try owner in current user if omitted.
  */
 export async function getHike(hikeId: string, ownerUid?: string): Promise<Hike | null> {
-  if (!hikeId) throw new Error("hikeId required");
-  const uid = ownerUid ?? (auth?.currentUser?.uid ?? null);
-  if (!uid) throw new Error("ownerUid not supplied and no authenticated user available");
-  const ref = doc(db, "users", uid, "hikes", hikeId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...(snap.data() as Hike) };
+  if (!hikeId) throw new Error("hikeId required")
+  const uid = ownerUid ?? auth?.currentUser?.uid ?? null
+  if (!uid) throw new Error("ownerUid not supplied and no authenticated user available")
+  const ref = doc(db, "users", uid, "hikes", hikeId)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) return null
+  return { id: snap.id, ...(snap.data() as Hike) }
 }
 
 /**
@@ -66,11 +66,11 @@ export async function getHike(hikeId: string, ownerUid?: string): Promise<Hike |
  * Create a hike under users/{ownerUid}/hikes.
  */
 export async function createHike(payload: Partial<Hike> & { owner: string; ownerUid?: string }) {
-  const ownerUid = payload.ownerUid ?? payload.owner ?? (auth?.currentUser?.uid ?? null);
-  if (!ownerUid) throw new Error("ownerUid must be provided or user must be signed in");
+  const ownerUid = payload.ownerUid ?? payload.owner ?? auth?.currentUser?.uid ?? null
+  if (!ownerUid) throw new Error("ownerUid must be provided or user must be signed in")
   const ref = await addDoc(collection(db, "users", ownerUid, "hikes"), {
     ...payload,
     createdAt: serverTimestamp(),
-  });
-  return ref.id;
+  })
+  return ref.id
 }

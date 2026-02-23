@@ -12,6 +12,7 @@ out/
 
 # Firebase
 .firebase/
+service-account*.json
 
 # TypeScript build artifacts
 tsconfig.tsbuildinfo
@@ -23,3 +24,6 @@ tsconfig.tsbuildinfo
 .DS_Store
 .vscode
 *.log
+
+# service accounts
+service-account.json

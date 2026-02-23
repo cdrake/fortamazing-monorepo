@@ -1,21 +1,22 @@
 // src/lib/images.ts
-import { doc, getDoc } from "firebase/firestore";
-import { getStorage, ref as storageRef, getDownloadURL } from "firebase/storage";
-import { db, auth } from "@/config/firebase";
+import { doc, getDoc } from "firebase/firestore"
+import { getStorage, ref as storageRef, getDownloadURL } from "firebase/storage"
+
+import { db, auth } from "@/config/firebase"
 
 /**
  * HikeImage shape returned to UI
  */
 export type HikeImage = {
-  id?: string;
-  url: string;
-  filename?: string;
-  path?: string; // original gs:// or storage path if present
-  lat?: number;
-  lng?: number;
-  createdAt?: any;
-  meta?: any;
-};
+  id?: string
+  url: string
+  filename?: string
+  path?: string // original gs:// or storage path if present
+  lat?: number
+  lng?: number
+  createdAt?: any
+  meta?: any
+}
 
 /**
  * Resolve a gs:// or storage path to a Firebase Storage download URL.
@@ -25,21 +26,21 @@ export type HikeImage = {
  * Returns undefined on failure.
  */
 export async function resolveStoragePathToDownloadUrl(pathOrGs?: string) {
-  if (!pathOrGs || typeof pathOrGs !== "string") return undefined;
+  if (!pathOrGs || typeof pathOrGs !== "string") return undefined
   try {
-    const storage = getStorage();
-    let path = pathOrGs.trim();
+    const storage = getStorage()
+    let path = pathOrGs.trim()
 
     // If full gs:// URI includes bucket, remove the leading gs://<bucket>/ if it contains the app bucket.
     // Accept either 'gs://<bucket>/path' or 'gs://path' (legacy).
     if (path.startsWith("gs://")) {
       // strip gs://
-      path = path.replace(/^gs:\/\//, "");
+      path = path.replace(/^gs:\/\//, "")
       // if bucket prefix present like "my-bucket.appspot.com/path/...", and it matches storage.app.options.storageBucket,
       // remove the bucket segment.
-      const bucketConfigured = (storage?.app?.options?.storageBucket ?? "").toString();
+      const bucketConfigured = (storage?.app?.options?.storageBucket ?? "").toString()
       if (bucketConfigured && path.startsWith(bucketConfigured + "/")) {
-        path = path.substring(bucketConfigured.length + 1);
+        path = path.substring(bucketConfigured.length + 1)
       } else {
         // If gs:// had only path (no bucket) or bucket mismatch, try using remainder as path.
         // e.g. gs://users/...
@@ -48,12 +49,12 @@ export async function resolveStoragePathToDownloadUrl(pathOrGs?: string) {
     }
 
     // now path should be a storage path relative to the bucket
-    const ref = storageRef(storage, path);
-    const dl = await getDownloadURL(ref);
-    return dl;
+    const ref = storageRef(storage, path)
+    const dl = await getDownloadURL(ref)
+    return dl
   } catch (err) {
-    console.warn("[resolveStoragePathToDownloadUrl] failed for", pathOrGs, err);
-    return undefined;
+    console.warn("[resolveStoragePathToDownloadUrl] failed for", pathOrGs, err)
+    return undefined
   }
 }
 
@@ -70,31 +71,38 @@ export async function resolveStoragePathToDownloadUrl(pathOrGs?: string) {
  * ownerUid optional: falls back to auth.currentUser.uid if omitted.
  */
 export async function listImagesForHike(hikeId: string, ownerUid?: string): Promise<HikeImage[]> {
-  const uid = ownerUid ?? auth?.currentUser?.uid;
-  console.log("[listImagesForHike] start", { hikeId, ownerUid, resolvedUid: uid });
+  const uid = ownerUid ?? auth?.currentUser?.uid
+  console.log("[listImagesForHike] start", { hikeId, ownerUid, resolvedUid: uid })
 
   if (!uid) {
-    throw new Error("[listImagesForHike] no ownerUid supplied and no authenticated user available");
+    throw new Error("[listImagesForHike] no ownerUid supplied and no authenticated user available")
   }
   if (!hikeId) {
-    throw new Error("[listImagesForHike] hikeId required");
+    throw new Error("[listImagesForHike] hikeId required")
   }
 
   // read the hike document
   try {
-    const hikeRef = doc(db, "users", uid, "hikes", hikeId);
-    console.log("[listImagesForHike] getDoc:", hikeRef.path);
-    const hikeSnap = await getDoc(hikeRef);
+    // Try activities collection first, fall back to hikes for legacy docs
+    let hikeRef = doc(db, "users", uid, "activities", hikeId)
+    console.log("[listImagesForHike] getDoc:", hikeRef.path)
+    let hikeSnap = await getDoc(hikeRef)
     if (!hikeSnap.exists()) {
-      console.warn("[listImagesForHike] hike doc not found:", hikeRef.path);
-      return [];
+      // Fallback to legacy hikes collection
+      hikeRef = doc(db, "users", uid, "hikes", hikeId)
+      console.log("[listImagesForHike] fallback to hikes:", hikeRef.path)
+      hikeSnap = await getDoc(hikeRef)
+    }
+    if (!hikeSnap.exists()) {
+      console.warn("[listImagesForHike] doc not found in activities or hikes:", hikeId)
+      return []
     }
 
-    const data: any = hikeSnap.data() ?? {};
-    const imagesRaw: any[] = Array.isArray(data.images) ? data.images : [];
+    const data: any = hikeSnap.data() ?? {}
+    const imagesRaw: any[] = Array.isArray(data.images) ? data.images : []
 
     // resolve each image to a download url
-    const resolved: HikeImage[] = [];
+    const resolved: HikeImage[] = []
 
     await Promise.all(
       imagesRaw.map(async (imgRaw: any, idx: number) => {
@@ -104,66 +112,81 @@ export async function listImagesForHike(hikeId: string, ownerUid?: string): Prom
           // - { path: "gs://..." }
           // - "gs://..." or "users/..." or direct http(s) url
           // - maybe store metadata in meta field
-          let url: string | undefined;
-          let path: string | undefined;
-          let filename: string | undefined;
-          let meta: any = undefined;
+          let url: string | undefined
+          let path: string | undefined
+          let filename: string | undefined
+          let meta: any = undefined
 
-          if (!imgRaw) return;
+          if (!imgRaw) return
 
           if (typeof imgRaw === "string") {
             // string entry: treat as path or url
             if (imgRaw.startsWith("http://") || imgRaw.startsWith("https://")) {
-              url = imgRaw;
+              url = imgRaw
             } else {
-              path = imgRaw;
+              path = imgRaw
             }
           } else if (typeof imgRaw === "object") {
             // object entry
-            if (typeof imgRaw.url === "string" && imgRaw.url.length > 0) url = imgRaw.url;
-            if (typeof imgRaw.path === "string" && imgRaw.path.length > 0) path = imgRaw.path;
-            if (typeof imgRaw.filename === "string") filename = imgRaw.filename;
-            if (imgRaw.meta) meta = imgRaw.meta;
+            if (typeof imgRaw.url === "string" && imgRaw.url.length > 0) url = imgRaw.url
+            if (typeof imgRaw.path === "string" && imgRaw.path.length > 0) path = imgRaw.path
+            if (typeof imgRaw.filename === "string") filename = imgRaw.filename
+            if (imgRaw.meta) meta = imgRaw.meta
             // fallback: sometimes image object is stored as { storagePath: "..." }
             if (!url && !path) {
-              const altPath = (imgRaw.storagePath ?? imgRaw.storage_path ?? imgRaw.gsPath ?? imgRaw.gs_path) as string | undefined;
-              if (typeof altPath === "string" && altPath.length > 0) path = altPath;
+              const altPath = (imgRaw.storagePath ??
+                imgRaw.storage_path ??
+                imgRaw.gsPath ??
+                imgRaw.gs_path) as string | undefined
+              if (typeof altPath === "string" && altPath.length > 0) path = altPath
             }
           }
 
           // if we already have a direct url, use it
           if (url) {
-            resolved.push({ id: String(idx), url, filename, path, meta });
-            return;
+            resolved.push({ id: String(idx), url, filename, path, meta })
+            return
           }
 
           // otherwise try to resolve path -> download url
           if (path) {
             // accept path like "gs://users/..." or "users/..." or "users/uid/..."
-            const dl = await resolveStoragePathToDownloadUrl(path);
+            const dl = await resolveStoragePathToDownloadUrl(path)
             if (dl) {
-              resolved.push({ id: String(idx), url: dl, filename, path, meta });
-              return;
+              resolved.push({ id: String(idx), url: dl, filename, path, meta })
+              return
             } else {
-              console.warn("[listImagesForHike] failed to resolve storage path for image", { hikeId, idx, path });
-              return;
+              console.warn("[listImagesForHike] failed to resolve storage path for image", {
+                hikeId,
+                idx,
+                path,
+              })
+              return
             }
           }
 
           // nothing we could resolve
-          console.warn("[listImagesForHike] skipping unknown image entry shape for index", idx, imgRaw);
-          return;
+          console.warn(
+            "[listImagesForHike] skipping unknown image entry shape for index",
+            idx,
+            imgRaw,
+          )
+          return
         } catch (err) {
-          console.warn("[listImagesForHike] per-image resolution failed", { hikeId, idx }, err);
-          return;
+          console.warn("[listImagesForHike] per-image resolution failed", { hikeId, idx }, err)
+          return
         }
-      })
-    );
+      }),
+    )
 
-    console.log("[listImagesForHike] resolved images count:", resolved.length);
-    return resolved;
+    console.log("[listImagesForHike] resolved images count:", resolved.length)
+    return resolved
   } catch (err: any) {
-    console.error("[listImagesForHike] failed to read hike doc or resolve images", { hikeId, ownerUid: uid }, err);
-    throw err;
+    console.error(
+      "[listImagesForHike] failed to read hike doc or resolve images",
+      { hikeId, ownerUid: uid },
+      err,
+    )
+    throw err
   }
 }

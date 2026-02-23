@@ -57,6 +57,8 @@ module.exports = {
     "react/prop-types": 0,
     // react-native
     "react-native/no-raw-text": 0,
+    "react-native/no-inline-styles": 0,
+    "react-native/no-color-literals": 0,
     // reactotron
     "reactotron/no-tron-in-production": "error",
     // eslint-config-standard overrides

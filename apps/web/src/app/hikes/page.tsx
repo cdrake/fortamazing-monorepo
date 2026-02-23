@@ -55,7 +55,7 @@ export default function HikesPage() {
     setLoading(true);
     setError(null);
     try {
-      const hikesColRef = collection(db, "users", user.uid, "hikes");
+      const hikesColRef = collection(db, "users", user.uid, "activities");
       const q = query(hikesColRef, orderBy("createdAt", "desc"));
       const snap = await getDocs(q);
 
