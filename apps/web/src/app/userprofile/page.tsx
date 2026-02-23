@@ -1,15 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { fetchPosts, Post, getUserProfile, UserProfile } from "@/lib/firebase";
-import PostList from "@/components/PostList";
+import { getUserProfile } from "@/lib/firebase";
+import type { UserProfile } from "@/lib/firebase";
 import Image from "next/image";
 
 export default function UserProfilePage() {
   const { username } = useParams<{ username: string }>()!;
 
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,28 +20,15 @@ export default function UserProfilePage() {
         setUserProfile(profile);
       } catch (error) {
         console.error("Error fetching user profile:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
     loadUserProfile();
   }, [username]);
 
-  useEffect(() => {
-    if (!username) return;
-
-    const loadPosts = async () => {
-      try {
-        const fetchedPosts = await fetchPosts({ userId: username as string });
-        setPosts(fetchedPosts);
-      } catch (error) {
-        console.error("Error fetching posts:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadPosts();
-  }, [username]);
+  if (loading) return <p>Loading...</p>;
 
   return (
     <div className="p-4">
@@ -64,13 +50,12 @@ export default function UserProfilePage() {
             </div>
           </div>
 
-          <h2 className="text-xl font-semibold mb-4">Posts by {userProfile.displayName || userProfile.username}</h2>
+          <h2 className="text-xl font-semibold mb-4">Activities by {userProfile.displayName || userProfile.username}</h2>
+          <p className="text-gray-500">Activity feed coming soon.</p>
         </>
       ) : (
         <h2 className="text-xl font-semibold mb-4">User not found</h2>
       )}
-
-      {loading ? <p>Loading posts...</p> : <PostList posts={posts} isSocialAdmin={false} />}
     </div>
   );
 }

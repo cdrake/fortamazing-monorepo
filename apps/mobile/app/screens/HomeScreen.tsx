@@ -11,10 +11,12 @@ import {
 } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
+import ActivityTypeIcon from "@/components/ActivityTypeIcon"
 import { Screen } from "@/components/Screen"
 import { Text } from "@/components/Text"
 import { auth } from "@/config/firebase"
-import { fetchUserHikes, type MobileHike } from "@/hooks/fetchUserHikes"
+import { fetchUserActivities, type MobileActivity } from "@/hooks/fetchUserActivities"
+import type { ActivityType, WorkoutData } from "@/lib/activityClassification"
 import type { AppStackScreenProps } from "@/navigators/navigationTypes"
 import { useAppTheme } from "@/theme/context"
 
@@ -22,7 +24,7 @@ type Props = AppStackScreenProps<"Home">
 
 export const HomeScreen: FC<Props> = ({ navigation }) => {
   const { themed } = useAppTheme()
-  const [hikes, setHikes] = useState<MobileHike[]>([])
+  const [hikes, setHikes] = useState<MobileActivity[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,7 +41,7 @@ export const HomeScreen: FC<Props> = ({ navigation }) => {
       }}
     >
       <Text size="xl" weight="bold">
-        Hikes
+        Activities
       </Text>
     </View>
   )
@@ -54,7 +56,7 @@ export const HomeScreen: FC<Props> = ({ navigation }) => {
         setError("Not signed in")
         return
       }
-      const items = await fetchUserHikes(user.uid)
+      const items = await fetchUserActivities(user.uid)
       // debug: show what images/resolved urls we got
       // eslint-disable-next-line no-console
       console.log("HomeScreen: fetched hikes count:", items.length)
@@ -94,8 +96,22 @@ export const HomeScreen: FC<Props> = ({ navigation }) => {
     // you can add onAuthStateChanged if desired
   }, [load])
 
-  const renderItem = ({ item }: { item: MobileHike }) => {
+  const renderItem = ({ item }: { item: MobileActivity }) => {
     const thumb = item.thumbnailUrl ?? null
+    const actType = (item.type ?? "other") as ActivityType
+    const isWorkout = actType === "workout"
+    const workout = item.raw?.workout as WorkoutData | undefined
+
+    let subtitle: string
+    if (isWorkout && workout?.exercises?.length) {
+      const exCount = workout.exercises.length
+      const setCount = workout.exercises.reduce((s, ex) => s + (ex.sets?.length ?? 0), 0)
+      subtitle = `${exCount} exercise${exCount !== 1 ? "s" : ""}, ${setCount} set${setCount !== 1 ? "s" : ""}`
+    } else if (Array.isArray(item.days) && item.days.length > 0) {
+      subtitle = `${item.days.length} day(s)`
+    } else {
+      subtitle = item.ownerUsername ?? item.ownerUid ?? "No details"
+    }
 
     return (
       <TouchableOpacity
@@ -111,11 +127,14 @@ export const HomeScreen: FC<Props> = ({ navigation }) => {
         )}
 
         <View style={styles.itemContent}>
-          <Text weight="bold">{item.title ?? "Untitled hike"}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <ActivityTypeIcon type={actType} size={18} />
+            <Text weight="bold" style={{ flex: 1 }}>
+              {item.title ?? "Untitled"}
+            </Text>
+          </View>
           <Text size="sm" numberOfLines={2}>
-            {Array.isArray(item.days) && item.days.length > 0
-              ? `${item.days.length} day(s)`
-              : (item.ownerUsername ?? item.ownerUid ?? "No details")}
+            {subtitle}
           </Text>
         </View>
       </TouchableOpacity>
@@ -127,7 +146,7 @@ export const HomeScreen: FC<Props> = ({ navigation }) => {
       {loading && (
         <View style={{ padding: 20 }}>
           <ActivityIndicator />
-          <Text>Loading hikes…</Text>
+          <Text>Loading activities…</Text>
         </View>
       )}
 
@@ -141,14 +160,46 @@ export const HomeScreen: FC<Props> = ({ navigation }) => {
         contentContainerStyle={{
           paddingBottom: insets.bottom + 120,
         }}
-        ListEmptyComponent={!loading ? <Text style={{ padding: 20 }}>No hikes found</Text> : null}
+        ListEmptyComponent={
+          !loading ? <Text style={{ padding: 20 }}>No activities found</Text> : null
+        }
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       />
+
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => navigation.navigate("NewActivity")}
+        activeOpacity={0.8}
+      >
+        <Text style={styles.fabText}>+</Text>
+      </TouchableOpacity>
     </Screen>
   )
 }
 
 const styles = StyleSheet.create({
+  fab: {
+    alignItems: "center",
+    backgroundColor: "#4A90D9",
+    borderRadius: 28,
+    bottom: 32,
+    elevation: 6,
+    height: 56,
+    justifyContent: "center",
+    position: "absolute",
+    right: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.27,
+    shadowRadius: 4.65,
+    width: 56,
+  },
+  fabText: {
+    color: "#fff",
+    fontSize: 28,
+    fontWeight: "bold",
+    lineHeight: 30,
+  },
   itemContainer: {
     alignItems: "center",
     borderBottomColor: "#eee",

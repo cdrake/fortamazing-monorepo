@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, User, sendSignInLinkToEmail, ActionCodeSettings, sendEmailVerification, FacebookAuthProvider, signInWithRedirect } from "firebase/auth";
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, getDoc, query, where, setDoc, updateDoc, orderBy } from "firebase/firestore";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, getDoc, query, where, setDoc, updateDoc, orderBy, limit, serverTimestamp } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import type { UserProfile } from "@fortamazing/lib/types";
 export type { UserProfile };
@@ -15,14 +15,14 @@ const firebaseConfig = {
   measurementId: "G-FX8J27FEDK"
 };
 
-// ✅ Initialize Firebase Services
+// Initialize Firebase Services
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 
-// ✅ Sign in with Google
+// Sign in with Google
 const signInWithGoogle = async () => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
@@ -46,7 +46,7 @@ export async function signInWithFacebook(): Promise<User | null> {
   }
 }
 
-// ✅ Sign out function
+// Sign out function
 const logout = async () => {
   try {
     await signOut(auth);
@@ -56,7 +56,7 @@ const logout = async () => {
 };
 
 
-// ✅ Post Data Type
+// Post Data Type
 export interface Post {
   id: string;
   userId: string;
@@ -64,15 +64,15 @@ export interface Post {
   userPhoto: string;
   imageUrl: string;
   caption: string;
-  categories: string[];  // ✅ Now supports multiple categories
-  subcategories: string[];  // ✅ Now supports multiple subcategories
-  tags: string[];  // ✅ List of tags
-  date?: string;  // ✅ Optional date for events (YYYY-MM-DD format)
-  time?: string;  // ✅ Optional time for events (HH:MM format)
-  createdAt: string;  // ✅ ISO timestamp
+  categories: string[];
+  subcategories: string[];
+  tags: string[];
+  date?: string;
+  time?: string;
+  createdAt: string;
 }
 
-// ✅ Upload a post (image + caption)
+// Upload a post (image + caption)
 const uploadPost = async (
   file: File,
   caption: string,
@@ -98,8 +98,8 @@ const uploadPost = async (
     categories,
     subcategories,
     tags,
-    date: date || null,  // ✅ Store event date if available
-    time: time || null,  // ✅ Store event time if available
+    date: date || null,
+    time: time || null,
     createdAt: new Date().toISOString(),
   });
 
@@ -173,7 +173,7 @@ const fetchPosts = async ({
   }
 };
 
-// ✅ Function to delete a post
+// Function to delete a post
 const deletePost = async (postId: string, imageUrl: string) => {
   const user = auth.currentUser;
   if (!user) throw new Error("User must be logged in to delete a post.");
@@ -192,7 +192,7 @@ const deletePost = async (postId: string, imageUrl: string) => {
   }
 };
 
-// ✅ Get user role from Firestore
+// Get user role from Firestore
 const getUserRole = async (user: User | null): Promise<string> => {
   if (!user) {
     console.log('no user specified');
@@ -205,45 +205,45 @@ const getUserRole = async (user: User | null): Promise<string> => {
   return userSnap.exists() ? userSnap.data().role : 'user';
 };
 
-// ✅ Define action settings for the email link
+// Define action settings for the email link
 const actionCodeSettings: ActionCodeSettings = {
   url: "https://fortamazing.com/signup",
   handleCodeInApp: true,
 };
 
-// ✅ Send Firebase Email Link (Native)
+// Send Firebase Email Link (Native)
 const generateInvite = async (email: string) => {
   await sendSignInLinkToEmail(auth, email, actionCodeSettings);
   return `Invite sent to ${email}. Check your inbox.`;
 };
 
-// ✅ Function to fetch all invites
+// Function to fetch all invites
 const fetchInvites = async () => {
   const inviteDocs = await getDocs(collection(db, "invites"));
-  
+
   return inviteDocs.docs.map((doc) => {
     const data = doc.data();
     return {
       id: doc.id,
-      email: data.email || "", // ✅ Ensure email is included
-      code: data.code || "", // ✅ Ensure invite code is included
+      email: data.email || "",
+      code: data.code || "",
     };
   });
 };
 
-// ✅ Function to delete an invite
+// Function to delete an invite
 const deleteInvite = async (inviteId: string) => {
   await deleteDoc(doc(db, "invites", inviteId));
 };
 
-// ✅ Send a verification email
+// Send a verification email
 const sendVerificationEmail = async () => {
   const auth = getAuth();
   if (auth.currentUser) {
     await sendEmailVerification(auth.currentUser);
-    console.log("✅ Verification email sent.");
+    console.log("Verification email sent.");
   } else {
-    console.error("❌ No user signed in.");
+    console.error("No user signed in.");
   }
 };
 
@@ -256,29 +256,29 @@ const authCheck = async () => {
   }
 };
 
-// ✅ Convert email to URL-safe format
+// Convert email to URL-safe format
 export const encodeEmailAsUsername = (email: string) => {
   return encodeURIComponent(email.replace(/@/g, "_at_"));
 };
 
-// ✅ Fetch user by encoded email or username
+// Fetch user by encoded email or username
 export const getUserByUsername = async (username: string) => {
   const q = query(collection(db, "users"), where("username", "==", username));
   const querySnapshot = await getDocs(q);
   return querySnapshot.empty ? null : querySnapshot.docs[0].data();
 };
 
-// ✅ Automatically create user profile with encoded email as username
+// Automatically create user profile with encoded email as username
 export const createUserProfile = async (user: User) => {
   if (!user.email) throw new Error("User email is required");
 
-  const sanitizedUsername = user.email.replace(/@/g, "."); // ✅ Replace "@" with "."
+  const sanitizedUsername = user.email.replace(/@/g, ".");
 
   const userRef = doc(db, "users", sanitizedUsername);
 
   await setDoc(userRef, {
     uid: user.uid,
-    username: sanitizedUsername, // ✅ Use sanitized username
+    username: sanitizedUsername,
     email: user.email,
     displayName: user.displayName || "",
     photoURL: user.photoURL || "/default-avatar.png",
@@ -287,7 +287,7 @@ export const createUserProfile = async (user: User) => {
   return sanitizedUsername;
 };
 
-// ✅ Allow users to update their username
+// Allow users to update their username
 const updateUsername = async (userId: string, newUsername: string) => {
   const q = query(collection(db, "users"), where("username", "==", newUsername));
   const querySnapshot = await getDocs(q);
@@ -311,32 +311,32 @@ const updateProfilePicture = async (userId: string, file: File): Promise<string>
   return newPhotoURL;
 };
 
-// ✅ Get UID from username
+// Get UID from username
 const getUserUID = async (username: string): Promise<string | null> => {
   try {
     const usersRef = collection(db, "users");
     const q = query(usersRef, where("username", "==", username));
     const querySnapshot = await getDocs(q);
 
-    if (querySnapshot.empty) return null; // ✅ No user found
+    if (querySnapshot.empty) return null;
 
-    return querySnapshot.docs[0].id; // ✅ Return UID
+    return querySnapshot.docs[0].id;
   } catch (error) {
     console.error("Error fetching user UID:", error);
     return null;
   }
 };
 
-// ✅ Fetch user details by username
+// Fetch user details by username
 export const getUserProfile = async (username: string): Promise<UserProfile | null> => {
   try {
     const uid = await getUserUID(username);
-    if (!uid) return null; // ✅ No user found
+    if (!uid) return null;
 
     const userRef = doc(db, "users", uid);
     const userSnap = await getDoc(userRef);
 
-    if (!userSnap.exists()) return null; // ✅ No user profile found
+    if (!userSnap.exists()) return null;
 
     return userSnap.data() as UserProfile;
   } catch (error) {
@@ -345,13 +345,13 @@ export const getUserProfile = async (username: string): Promise<UserProfile | nu
   }
 };
 
-// ✅ Fetch all usernames from Firestore
+// Fetch all usernames from Firestore
 export const getAllUsernames = async (): Promise<{ username: string }[]> => {
   const usersRef = collection(db, "users");
   const querySnapshot = await getDocs(usersRef);
 
   return querySnapshot.docs.map((doc) => ({
-    username: doc.data().username.replace(/@/g, "."), // ✅ Replace "@" with "." for URLs
+    username: doc.data().username.replace(/@/g, "."),
   }));
 };
 
@@ -365,4 +365,83 @@ export const getAllCategories = async (): Promise<string[]> => {
 };
 
 
-export { app, auth, db, storage, collection, doc, addDoc, setDoc, getDoc, getDocs, updateDoc, query, where, signInWithGoogle, logout, uploadPost, fetchPosts, deletePost, getUserRole, generateInvite, fetchInvites, deleteInvite, sendVerificationEmail, authCheck, updateProfilePicture, updateUsername };
+// ----------------------------------------
+// ACTIVITIES (replaces hikes + posts)
+// ----------------------------------------
+
+export type ActivityDoc = {
+  id: string;
+  ownerId: string;
+  type: string;
+  title: string;
+  description?: string;
+  descriptionMd?: string;
+  createdAt: unknown;
+  updatedAt?: unknown;
+  privacy: string;
+  public?: boolean;
+  adventureId?: string;
+  photos?: unknown[];
+  images?: unknown[];
+  photoCount?: number;
+  track?: Record<string, unknown>;
+  days?: unknown[];
+  owner?: { uid: string };
+  [key: string]: unknown;
+};
+
+const activitiesCollectionFor = (uid: string) =>
+  collection(db, "users", uid, "activities");
+
+export const createActivity = async (
+  data: Omit<ActivityDoc, "id" | "createdAt" | "updatedAt">
+) => {
+  const user = auth.currentUser;
+  if (!user) throw new Error("User must be logged in");
+  const uid = (data.ownerId as string) || user.uid;
+  const colRef = activitiesCollectionFor(uid);
+  const now = new Date().toISOString();
+  const docRef = await addDoc(colRef, {
+    ...data,
+    ownerId: uid,
+    createdAt: serverTimestamp(),
+    updatedAt: now,
+  });
+  return docRef.id;
+};
+
+export const listActivities = async (
+  uid: string,
+  maxItems = 100
+): Promise<ActivityDoc[]> => {
+  const colRef = activitiesCollectionFor(uid);
+  const q = query(colRef, orderBy("createdAt", "desc"), limit(maxItems));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as ActivityDoc));
+};
+
+export const getActivity = async (
+  uid: string,
+  activityId: string
+): Promise<ActivityDoc | null> => {
+  const docRef = doc(db, "users", uid, "activities", activityId);
+  const snap = await getDoc(docRef);
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as ActivityDoc;
+};
+
+export const updateActivity = async (
+  uid: string,
+  activityId: string,
+  data: Partial<ActivityDoc>
+) => {
+  const docRef = doc(db, "users", uid, "activities", activityId);
+  await updateDoc(docRef, { ...data, updatedAt: new Date().toISOString() });
+};
+
+export const deleteActivity = async (uid: string, activityId: string) => {
+  const docRef = doc(db, "users", uid, "activities", activityId);
+  await deleteDoc(docRef);
+};
+
+export { app, auth, db, storage, collection, doc, addDoc, setDoc, getDoc, getDocs, updateDoc, query, where, signInWithGoogle, logout, uploadPost, fetchPosts, deletePost, getUserRole, generateInvite, fetchInvites, deleteInvite, sendVerificationEmail, authCheck, updateProfilePicture, updateUsername, limit, serverTimestamp };

@@ -56,12 +56,42 @@ describe("Firestore query limits", () => {
     jest.clearAllMocks()
   })
 
+  it("useUserActivities passes limit(limitCount) to query", () => {
+    const { useUserActivities } = require("../useUserActivities")
+    renderHook(() => useUserActivities(25))
+
+    expect(mockLimit).toHaveBeenCalledWith(25)
+    expect(mockQuery).toHaveBeenCalledWith(expect.anything(), expect.anything(), "__limit_25__")
+  })
+
+  it("useUserActivities defaults to limit(100)", () => {
+    const { useUserActivities } = require("../useUserActivities")
+    renderHook(() => useUserActivities())
+
+    expect(mockLimit).toHaveBeenCalledWith(100)
+  })
+
   it("useUserHikes passes limit(limitCount) to query", () => {
     const { useUserHikes } = require("../useUserHikes")
     renderHook(() => useUserHikes(50))
 
     expect(mockLimit).toHaveBeenCalledWith(50)
     expect(mockQuery).toHaveBeenCalledWith(expect.anything(), expect.anything(), "__limit_50__")
+  })
+
+  it("fetchUserActivities passes limit(limitCount) to query", async () => {
+    const { fetchUserActivities } = require("../fetchUserActivities")
+    await fetchUserActivities("test-uid", 30)
+
+    expect(mockLimit).toHaveBeenCalledWith(30)
+    expect(mockQuery).toHaveBeenCalledWith(expect.anything(), expect.anything(), "__limit_30__")
+  })
+
+  it("fetchUserActivities defaults to limit(100)", async () => {
+    const { fetchUserActivities } = require("../fetchUserActivities")
+    await fetchUserActivities("test-uid")
+
+    expect(mockLimit).toHaveBeenCalledWith(100)
   })
 
   it("fetchUserHikes passes limit(limitCount) to query", async () => {

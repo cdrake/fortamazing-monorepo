@@ -10,9 +10,13 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack"
 import Config from "@/config"
 import { useAuth } from "@/context/AuthContext"
 import { ErrorBoundary } from "@/screens/ErrorScreen/ErrorBoundary"
+import { HealthKitImportScreen } from "@/screens/HealthKitImportScreen"
 import HikeDetail from "@/screens/HikeDetail"
 import HomeScreen from "@/screens/HomeScreen"
 import { LoginScreen } from "@/screens/LoginScreen"
+import { NewActivityScreen } from "@/screens/NewActivityScreen"
+import { RecordingScreen } from "@/screens/RecordingScreen"
+import { SaveActivityScreen } from "@/screens/SaveActivityScreen"
 import { WelcomeScreen } from "@/screens/WelcomeScreen"
 import { useAppTheme } from "@/theme/context"
 
@@ -52,6 +56,11 @@ const AppStack = () => {
           {/* Primary logged-in screens */}
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="HikeDetail" component={HikeDetail} />
+          <Stack.Screen name="ActivityDetail" component={HikeDetail} />
+          <Stack.Screen name="NewActivity" component={NewActivityScreen} />
+          <Stack.Screen name="Recording" component={RecordingScreen} />
+          <Stack.Screen name="SaveActivity" component={SaveActivityScreen} />
+          <Stack.Screen name="HealthKitImport" component={HealthKitImportScreen} />
 
           {/* keep your existing welcome/demo screens if still useful */}
           <Stack.Screen name="Welcome" component={WelcomeScreen} />
@@ -64,7 +73,7 @@ const AppStack = () => {
         </>
       )}
 
-      {/** 🔥 Your screens go here */}
+      {/** Your screens go here */}
       {/* IGNITE_GENERATOR_ANCHOR_APP_STACK_SCREENS */}
     </Stack.Navigator>
   )

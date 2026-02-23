@@ -7,6 +7,9 @@ import { getAuth } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { getStorage, ref as storageRef, getDownloadURL } from "firebase/storage";
 import { db } from "@/lib/firebase";
+import type { ActivityType, WorkoutData } from "@fortamazing/lib";
+import { ACTIVITY_TYPE_ICON } from "@/lib/activityClassification";
+import WorkoutDataView from "@/components/WorkoutDataView";
 import MapView, { ImageMarker } from "./MapView";
 import { appendToHikeWithStorage } from "../lib/hikeEditor";
 import { gpx as parseGpx, kml as parseKml } from "togeojson";
@@ -37,6 +40,9 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
   const [ownerUid, setOwnerUid] = useState<string | null>(null);
   const [title, setTitle] = useState<string>("");
   const [descriptionMd, setDescriptionMd] = useState<string>("");
+
+  const [activityType, setActivityType] = useState<ActivityType>("hike");
+  const [workoutData, setWorkoutData] = useState<WorkoutData | null>(null);
 
   const [dayTracks, setDayTracks] = useState<DayTrack[]>([]);
   const [images, setImages] = useState<string[]>([]);
@@ -104,6 +110,8 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
       setOwnerUid(authUser.uid);
       setTitle(data.title ?? "");
       setDescriptionMd(data.descriptionMd ?? "");
+      setActivityType((data.type as ActivityType) ?? "hike");
+      setWorkoutData(data.workout ?? null);
 
       // load days (support inline geojson or geojsonUrl / geojsonPath / combinedUrl)
       const loadedDays: DayTrack[] = [];
@@ -719,7 +727,10 @@ async function addMarker(lat: number, lon: number, imageUrl: string, opts?: { ti
     <div className="w-full max-w-6xl">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h2 className="text-xl font-semibold">{title || "Hike detail"}</h2>
+          <h2 className="text-xl font-semibold">
+            <span className="mr-1">{ACTIVITY_TYPE_ICON[activityType] ?? "🏔️"}</span>
+            {title || "Hike detail"}
+          </h2>
           {hikeId && <div className="text-xs text-gray-500">id: {hikeId}</div>}
         </div>
 
@@ -745,6 +756,7 @@ async function addMarker(lat: number, lon: number, imageUrl: string, opts?: { ti
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-2">
+          {dayTracks.length > 0 && (<>
           <div style={{ height: 420, borderRadius: 6, overflow: "hidden", border: "1px solid #eee" }}>
             <MapView
               dayTracks={dayTracks}
@@ -802,6 +814,15 @@ async function addMarker(lat: number, lon: number, imageUrl: string, opts?: { ti
               <div className="text-sm text-gray-600 mt-2">No active segment selected.</div>
             )}
           </div>
+          </>)}
+
+          {/* Workout exercises section (additive — shown if workout data exists) */}
+          {workoutData && workoutData.exercises?.length > 0 && (
+            <div className="mt-4 p-4 border rounded-xl">
+              <h3 className="font-semibold mb-3">Exercises</h3>
+              <WorkoutDataView workout={workoutData} />
+            </div>
+          )}
 
           {isEdit && (
             <div className="mt-4 p-3 border rounded bg-gray-50">

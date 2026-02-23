@@ -11,11 +11,19 @@ import {
 import { RouteProp, useNavigation, useRoute, NavigationProp } from "@react-navigation/native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
+import DaySelector from "@/components/DaySelector"
+import HikeMap from "@/components/HikeMap"
 import ImageUploadButton from "@/components/ImageUploadButton"
 import { Text } from "@/components/Text"
+import TrackStatsBar from "@/components/TrackStatsBar"
+import WorkoutDataView from "@/components/WorkoutDataView"
 import { auth as firebaseAuth } from "@/config/firebase"
-import { getHike } from "@/lib/hikes"
+import { getActivity } from "@/lib/activities"
+import type { WorkoutData, ActivityType } from "@/lib/activityClassification"
+import { ACTIVITY_TYPE_ICON } from "@/lib/activityClassification"
+import type { LatLng } from "@/lib/geoUtils"
 import { listImagesForHike } from "@/lib/images"
+import { loadHikeTrackData, type DayTrack, type HikeTrackData } from "@/lib/trackData"
 import { useAppTheme } from "@/theme/context"
 
 type RouteParams = {
@@ -33,15 +41,32 @@ export default function HikeDetail(): JSX.Element {
   const [hike, setHike] = useState<any | null>(null)
   const [images, setImages] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [scrollEnabled, setScrollEnabled] = useState(true)
   const navigation = useNavigation<NavigationType>()
+
+  // Track state
+  const [dayTracks, setDayTracks] = useState<DayTrack[]>([])
+  const [allCoordinates, setAllCoordinates] = useState<LatLng[]>([])
+  const [activeDayIndex, setActiveDayIndex] = useState<number | null>(null)
 
   async function load() {
     setLoading(true)
     console.log("[HikeDetail] loading hike and images for hikeId:", hikeId)
     try {
-      const h = await getHike(hikeId)
+      const h = await getActivity(hikeId)
       console.log("[HikeDetail] getHike returned:", h)
       setHike(h)
+
+      // Load track data (non-blocking — screen still renders if this fails)
+      if (h) {
+        try {
+          const trackData: HikeTrackData = await loadHikeTrackData(h as Record<string, unknown>)
+          setDayTracks(trackData.dayTracks)
+          setAllCoordinates(trackData.allCoordinates)
+        } catch (trackErr) {
+          console.warn("[HikeDetail] track data load failed:", trackErr)
+        }
+      }
 
       // fallback to currently authenticated user
       const currentUserUid = firebaseAuth?.currentUser?.uid ?? undefined
@@ -63,6 +88,10 @@ export default function HikeDetail(): JSX.Element {
   useEffect(() => {
     void load()
   }, [hikeId])
+
+  function handleDayPress(index: number) {
+    setActiveDayIndex((prev) => (prev === index ? null : index))
+  }
 
   if (loading) return <ActivityIndicator style={themed({ flex: 1 })} />
 
@@ -104,12 +133,55 @@ export default function HikeDetail(): JSX.Element {
       </TouchableOpacity>
 
       <ScrollView
+        scrollEnabled={scrollEnabled}
         contentContainerStyle={themed({ padding: 16, paddingTop: (insets.top ?? 0) + 56 })}
       >
-        <Text style={themed({ fontSize: 20, fontWeight: "700", marginBottom: 8 })}>
+        <Text weight="bold" style={themed({ fontSize: 20, marginBottom: 8 })}>
+          {ACTIVITY_TYPE_ICON[(hike?.type as ActivityType) ?? "other"] ?? "🏔️"}{" "}
           {hike?.title ?? "Untitled"}
         </Text>
         <Text style={themed({ marginBottom: 12 })}>{hike?.description ?? ""}</Text>
+
+        {/* Map and track visualization */}
+        {dayTracks.length > 0 && (
+          <View style={{ marginBottom: 12 }}>
+            <View
+              onTouchStart={() => setScrollEnabled(false)}
+              onTouchEnd={() => setScrollEnabled(true)}
+            >
+              <HikeMap
+                dayTracks={dayTracks}
+                activeDayIndex={activeDayIndex}
+                allCoordinates={allCoordinates}
+                onDayPress={handleDayPress}
+              />
+            </View>
+            <DaySelector
+              dayTracks={dayTracks}
+              activeDayIndex={activeDayIndex}
+              onDayPress={handleDayPress}
+            />
+            <TrackStatsBar dayTracks={dayTracks} activeDayIndex={activeDayIndex} />
+          </View>
+        )}
+
+        {/* Workout exercises section (additive — shown if workout data exists) */}
+        {hike?.workout && (hike.workout as WorkoutData).exercises?.length > 0 && (
+          <View
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              borderWidth: 1,
+              borderColor: "#eee",
+              borderRadius: 12,
+            }}
+          >
+            <Text weight="semiBold" style={themed({ fontSize: 16, marginBottom: 8 })}>
+              Exercises
+            </Text>
+            <WorkoutDataView workout={hike.workout as WorkoutData} />
+          </View>
+        )}
 
         <ImageUploadButton
           hikeId={hikeId}
@@ -118,7 +190,9 @@ export default function HikeDetail(): JSX.Element {
           }}
         />
 
-        <Text style={themed({ marginTop: 16, marginBottom: 8, fontWeight: "600" })}>Photos</Text>
+        <Text weight="semiBold" style={themed({ marginTop: 16, marginBottom: 8 })}>
+          Photos
+        </Text>
 
         {images.length === 0 ? (
           <Text>No photos yet</Text>

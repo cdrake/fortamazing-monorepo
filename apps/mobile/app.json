@@ -2,7 +2,7 @@
   "name": "FortAmazingExpoApp",
   "slug": "FortAmazingExpoApp",
   "scheme": "fortamazingexpoapp",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "orientation": "portrait",
   "userInterfaceStyle": "automatic",
   "icon": "./assets/images/app-icon-all.png",
@@ -27,6 +27,7 @@
   "ios": {
     "icon": "./assets/images/app-icon-ios.png",
     "supportsTablet": true,
+    "buildNumber": "4",
     "bundleIdentifier": "com.fortamazing.app",
     "privacyManifests": {
       "NSPrivacyAccessedAPITypes": [
@@ -38,8 +39,12 @@
         }
       ]
     },
+    "entitlements": {
+      "com.apple.developer.healthkit": true
+    },
     "infoPlist": {
       "ITSAppUsesNonExemptEncryption": false,
+      "NSHealthShareUsageDescription": "FortAmazing reads your workout data to import activities like runs, walks, and swims.",
       "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
@@ -73,6 +78,22 @@
           "parentTheme": "Light",
           "enforceNavigationBarContrast": false
         }
+      }
+    ],
+    [
+      "expo-location",
+      {
+        "locationAlwaysAndWhenInUsePermission": "FortAmazing uses your location to record GPS tracks for your activities.",
+        "locationAlwaysPermission": "FortAmazing uses background location to keep recording your GPS track when the app is in the background.",
+        "locationWhenInUsePermission": "FortAmazing uses your location to record GPS tracks.",
+        "isIosBackgroundLocationEnabled": true,
+        "isAndroidBackgroundLocationEnabled": true
+      }
+    ],
+    [
+      "react-native-health",
+      {
+        "isClinicalDataEnabled": false
       }
     ],
     "expo-build-properties"

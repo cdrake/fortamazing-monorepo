@@ -3,7 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ----------------------------------------
-    // POSTS
+    // POSTS (deprecated — kept during migration)
     // ----------------------------------------
     match /posts/{postId} {
       allow read: if true;
@@ -32,44 +32,21 @@ service cloud.firestore {
     }
 
     // ----------------------------------------
-    // HIKES (now stored under users/{uid}/hikes/{hikeId})
-    // - Document shape (recommended):
-    //   {
-    //     owner: { uid: "...", email: "...", displayName: "..." },
-    //     public: true|false,
-    //     title: "...",
-    //     descriptionMd: "...",
-    //     days: [ { id: "...", name: "...", stats: {...}, color: "...", geojsonUrl: "..." }, ... ],
-    //     combinedUrl: "https://...json",
-    //     images: [{ url: "...", filename: "...", contentType: "..." }],
-    //     createdAt: <timestamp>
-    //   }
+    // HIKES (deprecated — kept during migration)
     // ----------------------------------------
-
-    // Allow collectionGroup queries (list) for any hikes subcollection
     match /{anyPath=**}/hikes {
       allow list: if request.auth != null;
     }
 
-    // Generic access rules for any single hike doc in any subcollection named "hikes"
     match /{anyPath=**}/hikes/{hikeId} {
-
-      // GET: public OR owner
       allow get: if resource.data.public == true
                  || (request.auth != null && request.auth.uid == resource.data.owner.uid);
-
-      // LIST: covered by parent /{anyPath=**}/hikes above (collectionGroup)
       allow list: if true;
-
-      // CREATE: only authenticated users and the request must assert the owner.uid equals auth.uid
       allow create: if request.auth != null
                     && request.resource.data.owner is map
                     && request.resource.data.owner.uid == request.auth.uid
-                    // basic shape checks (optional but recommended)
                     && request.resource.data.title is string
                     && request.resource.data.createdAt != null;
-
-      // UPDATE / DELETE: only owner can modify/delete after creation
       allow update, delete: if request.auth != null
                             && request.auth.uid == resource.data.owner.uid;
     }

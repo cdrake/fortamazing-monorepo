@@ -1,18 +1,9 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import PostList from "@/components/PostList";
-import { fetchPosts, Post } from "@/lib/firebase";
 import { auth, getUserRole } from "@/lib/firebase";
 
-// ✅ Define main categories
-const categories = ["Exercise", "Diet", "Wellness", "Event", "Equipment"];
-
 export default function HomePage() {
-  const pathname = usePathname();
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isSocialAdmin, setIsSocialAdmin] = useState(false);
   const [user, setUser] = useState(auth.currentUser);
 
@@ -34,69 +25,44 @@ export default function HomePage() {
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    const loadPosts = async () => {
-      setLoading(true);
-      try {
-        const pathParts = pathname!.split("/").filter(Boolean);
-
-        const filter: {
-          categories?: string[];
-          subcategories?: string[];
-          tag?: string;
-          userId?: string;
-        } = {};
-
-        // ✅ Filter by category or user
-        if (pathParts[0] === "c" && pathParts.length >= 2) {
-          filter.categories = [pathParts[1]];
-          if (pathParts.length >= 3) {
-            filter.subcategories = [pathParts[2]];
-          }
-        } else if (pathParts[0] === "u" && pathParts.length >= 2) {
-          filter.userId = pathParts[1];
-        }
-
-        const fetchedPosts = await fetchPosts(filter);
-        setPosts(fetchedPosts);
-      } catch (error) {
-        console.error("Error fetching posts:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadPosts();
-  }, [pathname]);
-
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Welcome to Fort Amazing</h1>
 
-      {/* ✅ Category Links */}
-      <h2 className="text-lg font-semibold">Browse by Category</h2>
-      <div className="flex gap-4 my-2 flex-wrap">
-        {categories.map((category) => (
-          <Link
-            key={category}
-            href={`/c/${category.toLowerCase()}`}
-            className="text-blue-500 hover:underline"
-          >
-            {category}
-          </Link>
-        ))}
+      <p className="mb-4 text-gray-600">
+        Your adventure diary. Track activities, plan adventures, and manage your gear.
+      </p>
 
-        {/* 🔥 Direct Link to Diet Log */}
-        <Link href="/diet" className="text-red-500 hover:underline">
-          Diet Log
-        </Link>
-      </div>
-
-      {/* ✅ Navigation Options */}
-      <div className="mb-4 flex gap-4 flex-wrap">
+      {/* Navigation */}
+      <div className="mb-6 flex gap-4 flex-wrap">
         {user ? (
           <>
-            <Link href="/settings" className="text-blue-500 hover:underline">
+            <Link
+              href="/hikes"
+              className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+            >
+              Activities
+            </Link>
+
+            <Link
+              href="/adventures"
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              Adventures
+            </Link>
+
+            <Link
+              href="/gear"
+              className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
+            >
+              Gear
+            </Link>
+
+            <Link href="/diet" className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+              Diet Log
+            </Link>
+
+            <Link href="/settings" className="text-blue-500 hover:underline self-center">
               Settings
             </Link>
 
@@ -104,32 +70,23 @@ export default function HomePage() {
               href={`/u/${encodeURIComponent(
                 (user.email || "").replace(/@/g, ".")
               )}`}
-              className="text-blue-500 hover:underline"
+              className="text-blue-500 hover:underline self-center"
             >
               My Profile
             </Link>
 
-            {/* ⭐ NEW: Upload Tracks Link */}
-            <Link
-              href="/hikes"
-              className="text-purple-600 font-semibold hover:underline"
-            >
-              Hikes
-            </Link>
+            {isSocialAdmin && (
+              <Link href="/admin" className="text-blue-500 hover:underline self-center">
+                Admin
+              </Link>
+            )}
           </>
         ) : (
-          <Link href="/login" className="text-green-500 hover:underline">
+          <Link href="/login" className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
             Sign In
           </Link>
         )}
       </div>
-
-      {/* ✅ Post List */}
-      {loading ? (
-        <p>Loading posts...</p>
-      ) : (
-        <PostList posts={posts} isSocialAdmin={isSocialAdmin} />
-      )}
     </div>
   );
 }

@@ -83,11 +83,18 @@ export async function listImagesForHike(hikeId: string, ownerUid?: string): Prom
 
   // read the hike document
   try {
-    const hikeRef = doc(db, "users", uid, "hikes", hikeId)
+    // Try activities collection first, fall back to hikes for legacy docs
+    let hikeRef = doc(db, "users", uid, "activities", hikeId)
     console.log("[listImagesForHike] getDoc:", hikeRef.path)
-    const hikeSnap = await getDoc(hikeRef)
+    let hikeSnap = await getDoc(hikeRef)
     if (!hikeSnap.exists()) {
-      console.warn("[listImagesForHike] hike doc not found:", hikeRef.path)
+      // Fallback to legacy hikes collection
+      hikeRef = doc(db, "users", uid, "hikes", hikeId)
+      console.log("[listImagesForHike] fallback to hikes:", hikeRef.path)
+      hikeSnap = await getDoc(hikeRef)
+    }
+    if (!hikeSnap.exists()) {
+      console.warn("[listImagesForHike] doc not found in activities or hikes:", hikeId)
       return []
     }
 
