@@ -674,7 +674,7 @@ export default function TrackUploader({ registerLoad }: TrackUploaderProps): JSX
       const user = getAuth().currentUser;
       if (!user) throw new Error("Not signed in");
 
-      const docRef = doc(db, "users", user.uid, "hikes", hikeId);
+      const docRef = doc(db, "users", user.uid, "activities", hikeId);
       const docSnap = await getDoc(docRef);
       if (!docSnap.exists()) throw new Error("Hike not found");
 

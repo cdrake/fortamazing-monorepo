@@ -23,14 +23,7 @@ type TrackDetailProps = {
   registerLoad?: (fn: (hikeId: string) => Promise<void>) => (() => void) | void;
 };
 
-type DayTrack = {
-  id: string;
-  name: string;
-  geojson: FeatureCollection<Geometry>;
-  stats: { distance_m: number; elevation: { min:number; max:number } | null; bounds: [number,number,number,number] | null };
-  color?: string;
-  visible?: boolean;
-};
+import type { DayTrack } from "../lib/trackUtils";
 
 export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Element {
   const [loading, setLoading] = useState(false);
@@ -100,31 +93,32 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
       const authUser = getAuth().currentUser;
       if (!authUser) throw new Error("Sign in required to load hikes");
 
-      const docRef = doc(db, "users", authUser.uid, "hikes", id);
+      const docRef = doc(db, "users", authUser.uid, "activities", id);
       const snap = await getDoc(docRef);
       if (!snap.exists()) throw new Error("Hike not found under current user");
 
-      const data: any = snap.data();
+      const data = snap.data() as Record<string, unknown>;
 
       setHikeId(id);
       setOwnerUid(authUser.uid);
-      setTitle(data.title ?? "");
-      setDescriptionMd(data.descriptionMd ?? "");
+      setTitle((data.title as string) ?? "");
+      setDescriptionMd((data.descriptionMd as string) ?? "");
       setActivityType((data.type as ActivityType) ?? "hike");
-      setWorkoutData(data.workout ?? null);
+      setWorkoutData((data.workout as WorkoutData) ?? null);
 
       // load days (support inline geojson or geojsonUrl / geojsonPath / combinedUrl)
       const loadedDays: DayTrack[] = [];
-      if (Array.isArray(data.days) && data.days.length) {
+      const days = data.days as Record<string, unknown>[] | undefined;
+      if (Array.isArray(days) && days.length) {
         const storage = getStorage();
-        for (let i = 0; i < data.days.length; i++) {
-          const d = data.days[i];
+        for (let i = 0; i < days.length; i++) {
+          const d = days[i] as Record<string, unknown>;
           let fc: FeatureCollection<Geometry> = { type: "FeatureCollection", features: [] };
           if (d.geojson) {
-            fc = d.geojson;
+            fc = d.geojson as FeatureCollection<Geometry>;
           } else if (d.geojsonUrl) {
             try {
-              const resp = await fetch(d.geojsonUrl);
+              const resp = await fetch(d.geojsonUrl as string);
               fc = await resp.json();
             } catch (e) {
               // ignore
@@ -150,11 +144,11 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
 
           const stats = computeStats(fc);
           loadedDays.push({
-            id: d.id ?? `day-${i}`,
-            name: d.name ?? `Day ${i + 1}`,
+            id: (d.id as string) ?? `day-${i}`,
+            name: (d.name as string) ?? `Day ${i + 1}`,
             geojson: fc,
             stats,
-            color: d.color ?? undefined,
+            color: (d.color as string) ?? undefined,
             visible: typeof d.visible === "boolean" ? d.visible : true,
           });
         }
@@ -162,10 +156,10 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
         // try combined
         let combined: FeatureCollection<Geometry> | null = null;
         try {
-          if (data.combinedGeojson) combined = data.combinedGeojson;
+          if (data.combinedGeojson) combined = data.combinedGeojson as FeatureCollection<Geometry>;
           else if (data.combinedUrl) {
             const storage = getStorage();
-            let url = data.combinedUrl;
+            let url = data.combinedUrl as string;
             if (typeof url === "string" && url.startsWith("gs://")) {
               const ref = storageRef(storage, url.replace(/^gs:\/\//, ""));
               url = await getDownloadURL(ref);
@@ -199,9 +193,9 @@ export default function TrackDetail({ registerLoad }: TrackDetailProps): JSX.Ele
       const resolvedImages: string[] = [];
       if (Array.isArray(data.images)) {
         const storage = getStorage();
-        for (const im of data.images) {
+        for (const im of data.images as Record<string, unknown>[]) {
           try {
-            const maybe = im.url ?? im.path ?? im;
+            const maybe = (im.url ?? im.path ?? im) as string;
             if (typeof maybe === "string" && maybe.startsWith("gs://")) {
               const ref = storageRef(storage, maybe.replace(/^gs:\/\//, ""));
               const dl = await getDownloadURL(ref);

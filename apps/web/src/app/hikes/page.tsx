@@ -2,26 +2,14 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { getAuth, onAuthStateChanged, type User } from "firebase/auth";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { listActivities, type ActivityDoc } from "@/lib/firebase";
 
 import TrackUploader from "./components/TrackUploader";
 import TrackDetail from "./components/TrackDetail";
 
-type HikeDoc = {
-  id: string;
-  title?: string;
-  ownerUid?: string;
-  ownerUsername?: string;
-  public?: boolean;
-  createdAt?: unknown;
-  days?: unknown[];
-  distance_m?: number | null;
-};
-
 export default function HikesPage() {
   const [loading, setLoading] = useState(false);
-  const [hikes, setHikes] = useState<HikeDoc[]>([]);
+  const [hikes, setHikes] = useState<ActivityDoc[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
@@ -55,51 +43,9 @@ export default function HikesPage() {
     setLoading(true);
     setError(null);
     try {
-      const hikesColRef = collection(db, "users", user.uid, "activities");
-      const q = query(hikesColRef, orderBy("createdAt", "desc"));
-      const snap = await getDocs(q);
-
-      const items: HikeDoc[] = snap.docs
-        .map((d) => {
-          const raw = d.data() as Record<string, unknown> | null;
-          if (!raw) return null;
-
-          const days = Array.isArray(raw.days) ? (raw.days as unknown[]) : undefined;
-          if (!days) return null;
-
-          let totalDistance: number | null = null;
-          try {
-            const sum = (days || []).reduce((acc: number, day: unknown) => {
-              if (day && typeof day === "object") {
-                const stat = (day as Record<string, unknown>).stats as Record<string, unknown> | undefined;
-                const v = stat && typeof stat.distance_m === "number" ? (stat.distance_m as number) : 0;
-                return acc + v;
-              }
-              return acc;
-            }, 0);
-            totalDistance = sum > 0 ? sum : null;
-          } catch {
-            totalDistance = null;
-          }
-
-          const owner = raw.owner as Record<string, unknown> | undefined;
-
-          return {
-            id: d.id,
-            title: typeof raw.title === "string" ? raw.title : undefined,
-            ownerUid: user.uid,
-            ownerUsername: owner?.displayName ?? owner?.email ?? undefined,
-            public: !!raw.public,
-            createdAt: raw.createdAt,
-            days,
-            distance_m: totalDistance,
-          } as HikeDoc;
-        })
-        .filter(Boolean) as HikeDoc[];
-
+      const items = await listActivities(user.uid);
       setHikes(items);
     } catch (err: unknown) {
-      // log error and show friendly message
       // eslint-disable-next-line no-console
       console.error("Error loading user hikes:", err);
       setError(String((err as Error)?.message ?? err ?? "Unknown error"));
@@ -208,20 +154,20 @@ export default function HikesPage() {
       )}
 
       {!currentUser && (
-        <div className="mb-4 text-gray-600">Sign in to view hikes created by the uploader (stored under users/uid/hikes).</div>
+        <div className="mb-4 text-gray-600">Sign in to view activities created by the uploader.</div>
       )}
 
       <ul className="space-y-3 mt-4">
         {hikes.map((h) => (
-          <li key={`${h.ownerUid ?? "u"}_${h.id}`} className="p-3 border rounded">
+          <li key={`${h.ownerId ?? "u"}_${h.id}`} className="p-3 border rounded">
             <div className="flex justify-between items-start">
               <div>
                 <div className="text-lg font-semibold">{h.title || "Untitled hike"}</div>
-                <div className="text-sm text-gray-600">by {h.ownerUsername || h.ownerUid || "you"}</div>
+                <div className="text-sm text-gray-600">by {h.ownerId || "you"}</div>
               </div>
 
               <div className="flex flex-col items-end gap-2">
-                <div className="text-sm text-gray-500">{h.public ? "Public" : "Private"}</div>
+                <div className="text-sm text-gray-500">{h.privacy === "public" ? "Public" : "Private"}</div>
 
                 <div>
                   <button
@@ -251,7 +197,7 @@ export default function HikesPage() {
               ) : (
                 <span>—</span>
               )}
-              {h.distance_m ? <span> • {(h.distance_m / 1000).toFixed(2)} km</span> : null}
+              {typeof h.track?.distance_m === "number" ? <span> • {((h.track.distance_m as number) / 1000).toFixed(2)} km</span> : null}
             </div>
           </li>
         ))}
