@@ -21,6 +21,7 @@ import {
   type HealthKitWorkoutData,
 } from "@/lib/healthKit"
 import type { AppStackScreenProps } from "@/navigators/navigationTypes"
+import { useAppTheme } from "@/theme/context"
 
 type Props = AppStackScreenProps<"HealthKitImport">
 
@@ -49,6 +50,9 @@ function formatDate(dateStr: string): string {
 
 export const HealthKitImportScreen = ({ navigation }: Props) => {
   const insets = useSafeAreaInsets()
+  const {
+    theme: { colors },
+  } = useAppTheme()
   const [workouts, setWorkouts] = useState<HealthKitWorkoutData[]>([])
   const [importedUuids, setImportedUuids] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -152,24 +156,38 @@ export const HealthKitImportScreen = ({ navigation }: Props) => {
 
     return (
       <TouchableOpacity
-        style={[styles.row, alreadyImported && styles.rowImported]}
+        style={[
+          styles.row,
+          { borderBottomColor: colors.palette.neutral200 },
+          alreadyImported && styles.rowImported,
+        ]}
         onPress={() => !alreadyImported && toggleSelect(item.uuid)}
         disabled={alreadyImported}
         activeOpacity={0.7}
       >
-        <View style={[styles.checkbox, isSelected && styles.checkboxChecked]}>
-          {isSelected && <Text style={styles.checkmark}>✓</Text>}
-          {alreadyImported && <Text style={styles.checkmark}>—</Text>}
+        <View
+          style={[
+            styles.checkbox,
+            { borderColor: colors.border },
+            isSelected && { backgroundColor: colors.tint, borderColor: colors.tint },
+          ]}
+        >
+          {isSelected && (
+            <Text style={[styles.checkmark, { color: colors.palette.neutral100 }]}>✓</Text>
+          )}
+          {alreadyImported && (
+            <Text style={[styles.checkmark, { color: colors.palette.neutral100 }]}>—</Text>
+          )}
         </View>
         <Text style={styles.rowIcon}>{ACTIVITY_TYPE_ICON[item.activityType]}</Text>
         <View style={styles.rowContent}>
           <Text weight="medium">{ACTIVITY_TYPE_LABEL[item.activityType]}</Text>
-          <Text size="xs" style={{ color: "#888" }}>
+          <Text size="xs" style={{ color: colors.textDim }}>
             {formatDate(item.startDate)} · {formatDuration(item.duration)}
             {item.distance ? ` · ${formatDistance(item.distance)}` : ""}
           </Text>
           {alreadyImported && (
-            <Text size="xs" style={{ color: "#aaa" }}>
+            <Text size="xs" style={{ color: colors.tintInactive }}>
               Already imported
             </Text>
           )}
@@ -187,7 +205,7 @@ export const HealthKitImportScreen = ({ navigation }: Props) => {
         <Text size="xl" weight="bold">
           Import from Apple Health
         </Text>
-        <Text size="sm" style={{ color: "#888" }}>
+        <Text size="sm" style={{ color: colors.textDim }}>
           Last 30 days
         </Text>
       </View>
@@ -205,24 +223,37 @@ export const HealthKitImportScreen = ({ navigation }: Props) => {
             renderItem={renderItem}
             contentContainerStyle={{ paddingBottom: 100 }}
             ListEmptyComponent={
-              <Text style={{ padding: 20, color: "#888" }}>
+              <Text style={{ padding: 20, color: colors.textDim }}>
                 No workouts found in the last 30 days.
               </Text>
             }
           />
 
           {selected.size > 0 && (
-            <View style={[styles.importBar, { paddingBottom: insets.bottom + 12 }]}>
+            <View
+              style={[
+                styles.importBar,
+                {
+                  backgroundColor: colors.palette.neutral100,
+                  borderTopColor: colors.separator,
+                  paddingBottom: insets.bottom + 12,
+                },
+              ]}
+            >
               <TouchableOpacity
-                style={[styles.importBtn, importing && { opacity: 0.6 }]}
+                style={[
+                  styles.importBtn,
+                  { backgroundColor: colors.tint },
+                  importing && { opacity: 0.6 },
+                ]}
                 onPress={handleImport}
                 disabled={importing}
                 activeOpacity={0.8}
               >
                 {importing ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={colors.palette.neutral100} />
                 ) : (
-                  <Text style={styles.importBtnText} weight="bold">
+                  <Text style={{ color: colors.palette.neutral100, fontSize: 16 }} weight="bold">
                     Import {selected.size} Workout{selected.size !== 1 ? "s" : ""}
                   </Text>
                 )}
@@ -246,19 +277,13 @@ const styles = StyleSheet.create({
   },
   checkbox: {
     alignItems: "center",
-    borderColor: "#ccc",
     borderRadius: 4,
     borderWidth: 2,
     height: 24,
     justifyContent: "center",
     width: 24,
   },
-  checkboxChecked: {
-    backgroundColor: "#4A90D9",
-    borderColor: "#4A90D9",
-  },
   checkmark: {
-    color: "#fff",
     fontSize: 14,
     fontWeight: "bold",
   },
@@ -268,8 +293,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   importBar: {
-    backgroundColor: "#fff",
-    borderTopColor: "#eee",
     borderTopWidth: 1,
     bottom: 0,
     left: 0,
@@ -280,17 +303,11 @@ const styles = StyleSheet.create({
   },
   importBtn: {
     alignItems: "center",
-    backgroundColor: "#4A90D9",
     borderRadius: 12,
     paddingVertical: 16,
   },
-  importBtnText: {
-    color: "#fff",
-    fontSize: 16,
-  },
   row: {
     alignItems: "center",
-    borderBottomColor: "#f0f0f0",
     borderBottomWidth: 1,
     flexDirection: "row",
     gap: 10,

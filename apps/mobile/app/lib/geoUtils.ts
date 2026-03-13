@@ -1,5 +1,11 @@
-// app/lib/geoUtils.ts — Lightweight geo utilities for react-native-maps
-// Replaces @turf/turf with Haversine math to keep bundle small.
+/**
+ * app/lib/geoUtils.ts — Lightweight geo utilities for react-native-maps.
+ * Replaces @turf/turf with Haversine math to keep bundle small.
+ *
+ * IMPORTANT: GeoJSON positions use [longitude, latitude] order (per RFC 7946).
+ * All functions in this module intentionally read pos[0] as longitude and
+ * pos[1] as latitude, then convert to {latitude, longitude} for react-native-maps.
+ */
 
 import type { FeatureCollection, Geometry, Position } from "geojson"
 

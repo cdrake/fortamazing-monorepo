@@ -23,7 +23,9 @@ import { useAppTheme } from "@/theme/context"
 type Props = AppStackScreenProps<"Home">
 
 export const HomeScreen: FC<Props> = ({ navigation }) => {
-  const { themed } = useAppTheme()
+  const {
+    theme: { colors },
+  } = useAppTheme()
   const [hikes, setHikes] = useState<MobileActivity[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -116,12 +118,12 @@ export const HomeScreen: FC<Props> = ({ navigation }) => {
     return (
       <TouchableOpacity
         onPress={() => navigation.navigate("HikeDetail" as any, { hikeId: item.id })}
-        style={styles.itemContainer}
+        style={[styles.itemContainer, { borderBottomColor: colors.separator }]}
       >
         {thumb ? (
           <Image source={{ uri: thumb }} style={styles.thumb} resizeMode="cover" />
         ) : (
-          <View style={styles.thumbPlaceholder}>
+          <View style={[styles.thumbPlaceholder, { backgroundColor: colors.palette.neutral200 }]}>
             <Text size="xs">No photo</Text>
           </View>
         )}
@@ -142,7 +144,7 @@ export const HomeScreen: FC<Props> = ({ navigation }) => {
   }
 
   return (
-    <Screen preset="fixed" contentContainerStyle={themed({ paddingTop: 8 })}>
+    <Screen preset="fixed" contentContainerStyle={{ paddingTop: 8 }}>
       {loading && (
         <View style={{ padding: 20 }}>
           <ActivityIndicator />
@@ -150,7 +152,7 @@ export const HomeScreen: FC<Props> = ({ navigation }) => {
         </View>
       )}
 
-      {error && <Text style={{ color: "red", padding: 12 }}>{error}</Text>}
+      {error && <Text style={{ color: colors.error, padding: 12 }}>{error}</Text>}
 
       <FlatList
         data={hikes}
@@ -167,11 +169,11 @@ export const HomeScreen: FC<Props> = ({ navigation }) => {
       />
 
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { backgroundColor: colors.tint }]}
         onPress={() => navigation.navigate("NewActivity")}
         activeOpacity={0.8}
       >
-        <Text style={styles.fabText}>+</Text>
+        <Text style={[styles.fabText, { color: colors.palette.neutral100 }]}>+</Text>
       </TouchableOpacity>
     </Screen>
   )
@@ -180,7 +182,6 @@ export const HomeScreen: FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   fab: {
     alignItems: "center",
-    backgroundColor: "#4A90D9",
     borderRadius: 28,
     bottom: 32,
     elevation: 6,
@@ -195,14 +196,12 @@ const styles = StyleSheet.create({
     width: 56,
   },
   fabText: {
-    color: "#fff",
     fontSize: 28,
     fontWeight: "bold",
     lineHeight: 30,
   },
   itemContainer: {
     alignItems: "center",
-    borderBottomColor: "#eee",
     borderBottomWidth: 1,
     flexDirection: "row",
     padding: 12,
@@ -218,7 +217,6 @@ const styles = StyleSheet.create({
   },
   thumbPlaceholder: {
     alignItems: "center",
-    backgroundColor: "#f0f0f0",
     borderRadius: 6,
     height: 64,
     justifyContent: "center",

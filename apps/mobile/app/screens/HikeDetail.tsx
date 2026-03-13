@@ -35,7 +35,10 @@ type NavigationType = NavigationProp<RouteParams>
 export default function HikeDetail(): JSX.Element {
   const route = useRoute<RouteProp<RouteParams, "HikeDetail">>()
   const { hikeId } = route.params
-  const { themed } = useAppTheme()
+  const {
+    themed,
+    theme: { colors },
+  } = useAppTheme()
   const insets = useSafeAreaInsets()
 
   const [hike, setHike] = useState<any | null>(null)
@@ -172,7 +175,7 @@ export default function HikeDetail(): JSX.Element {
               marginBottom: 16,
               padding: 12,
               borderWidth: 1,
-              borderColor: "#eee",
+              borderColor: colors.separator,
               borderRadius: 12,
             }}
           >
