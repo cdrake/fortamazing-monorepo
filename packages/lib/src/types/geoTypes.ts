@@ -9,3 +9,19 @@ export type BBox = {
   maxLat: number;
   maxLng: number;
 };
+
+export type GeoJsonGeometry = {
+  type: string;
+  coordinates: number[] | number[][] | number[][][];
+};
+
+export type GeoJsonFeature = {
+  type: "Feature";
+  geometry: GeoJsonGeometry;
+  properties: Record<string, unknown>;
+};
+
+export type GeoJsonFeatureCollection = {
+  type: "FeatureCollection";
+  features: GeoJsonFeature[];
+};
