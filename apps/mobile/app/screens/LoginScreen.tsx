@@ -127,8 +127,8 @@ export const LoginScreen: FC<LoginScreenProps> = () => {
       {debugMessage ? (
         <Text
           style={themed({
-            backgroundColor: "#111",
-            color: "#fff",
+            backgroundColor: colors.palette.neutral800,
+            color: colors.palette.neutral100,
             padding: 8,
             borderRadius: 6,
             alignSelf: "stretch",

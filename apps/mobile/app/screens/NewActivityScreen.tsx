@@ -10,6 +10,7 @@ import {
   type ActivityType,
 } from "@/lib/activityClassification"
 import type { AppStackScreenProps } from "@/navigators/navigationTypes"
+import { useAppTheme } from "@/theme/context"
 
 type Props = AppStackScreenProps<"NewActivity">
 
@@ -18,6 +19,9 @@ const ALL_TYPES: ActivityType[] = [...GPS_TYPES, "workout", "other"]
 
 export const NewActivityScreen: FC<Props> = ({ navigation }) => {
   const insets = useSafeAreaInsets()
+  const {
+    theme: { colors },
+  } = useAppTheme()
 
   const handleSelect = (type: ActivityType) => {
     if (type === "workout") {
@@ -42,7 +46,7 @@ export const NewActivityScreen: FC<Props> = ({ navigation }) => {
         {ALL_TYPES.map((type) => (
           <TouchableOpacity
             key={type}
-            style={styles.typeCard}
+            style={[styles.typeCard, { backgroundColor: colors.palette.neutral200 }]}
             onPress={() => handleSelect(type)}
             activeOpacity={0.7}
           >
@@ -56,7 +60,7 @@ export const NewActivityScreen: FC<Props> = ({ navigation }) => {
 
       <View style={styles.importSection}>
         <TouchableOpacity
-          style={styles.importBtn}
+          style={[styles.importBtn, { backgroundColor: colors.palette.neutral200 }]}
           onPress={() => navigation.navigate("HealthKitImport")}
           activeOpacity={0.7}
         >
@@ -85,7 +89,6 @@ const styles = StyleSheet.create({
   },
   importBtn: {
     alignItems: "center",
-    backgroundColor: "#f5f5f5",
     borderRadius: 12,
     flexDirection: "row",
     gap: 10,
@@ -101,7 +104,6 @@ const styles = StyleSheet.create({
   typeCard: {
     alignItems: "center",
     aspectRatio: 1,
-    backgroundColor: "#f5f5f5",
     borderRadius: 12,
     gap: 4,
     justifyContent: "center",

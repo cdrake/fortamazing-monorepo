@@ -61,6 +61,8 @@ export async function resolveStoragePathToDownloadUrl(pathOrGs?: string) {
 /**
  * Shape matching the shared ActivityPhoto type from packages/lib.
  * Duplicated here because mobile cannot import @fortamazing/lib directly.
+ * TODO: import from @fortamazing/lib/types once exports field is available
+ * import type { ActivityPhoto } from "@fortamazing/lib/types"
  */
 type ActivityPhoto = {
   path?: string

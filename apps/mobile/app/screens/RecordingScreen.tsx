@@ -9,6 +9,7 @@ import { useGpsRecording } from "@/hooks/useGpsRecording"
 import { ACTIVITY_TYPE_ICON, ACTIVITY_TYPE_LABEL } from "@/lib/activityClassification"
 import { computeBoundsRegion } from "@/lib/geoUtils"
 import type { AppStackScreenProps } from "@/navigators/navigationTypes"
+import { useAppTheme } from "@/theme/context"
 
 type Props = AppStackScreenProps<"Recording">
 
@@ -36,6 +37,9 @@ function formatPace(meters: number, secs: number): string {
 export const RecordingScreen: FC<Props> = ({ route, navigation }) => {
   const { type } = route.params
   const insets = useSafeAreaInsets()
+  const {
+    theme: { colors },
+  } = useAppTheme()
   const { isRecording, points, elapsed, distance, currentLocation, start, stop, discard } =
     useGpsRecording()
   const [started, setStarted] = useState(false)
@@ -103,13 +107,13 @@ export const RecordingScreen: FC<Props> = ({ route, navigation }) => {
 
       <MapView style={styles.map} region={region} showsUserLocation>
         {coords.length >= 2 && (
-          <Polyline coordinates={coords} strokeColor="#4A90D9" strokeWidth={3} />
+          <Polyline coordinates={coords} strokeColor={colors.tint} strokeWidth={3} />
         )}
       </MapView>
 
-      <View style={styles.stats}>
+      <View style={[styles.stats, { backgroundColor: colors.palette.neutral100 }]}>
         <View style={styles.statItem}>
-          <Text size="xxs" weight="medium" style={styles.statLabel}>
+          <Text size="xxs" weight="medium" style={{ color: colors.textDim, marginBottom: 2 }}>
             TIME
           </Text>
           <Text size="xl" weight="bold">
@@ -117,7 +121,7 @@ export const RecordingScreen: FC<Props> = ({ route, navigation }) => {
           </Text>
         </View>
         <View style={styles.statItem}>
-          <Text size="xxs" weight="medium" style={styles.statLabel}>
+          <Text size="xxs" weight="medium" style={{ color: colors.textDim, marginBottom: 2 }}>
             DISTANCE
           </Text>
           <Text size="xl" weight="bold">
@@ -126,7 +130,7 @@ export const RecordingScreen: FC<Props> = ({ route, navigation }) => {
         </View>
         {showPace && (
           <View style={styles.statItem}>
-            <Text size="xxs" weight="medium" style={styles.statLabel}>
+            <Text size="xxs" weight="medium" style={{ color: colors.textDim, marginBottom: 2 }}>
               PACE
             </Text>
             <Text size="xl" weight="bold">
@@ -136,22 +140,39 @@ export const RecordingScreen: FC<Props> = ({ route, navigation }) => {
         )}
       </View>
 
-      <View style={[styles.controls, { paddingBottom: insets.bottom + 16 }]}>
+      <View
+        style={[
+          styles.controls,
+          { backgroundColor: colors.palette.neutral100, paddingBottom: insets.bottom + 16 },
+        ]}
+      >
         {!started || !isRecording ? (
-          <TouchableOpacity style={styles.startBtn} onPress={handleStart} activeOpacity={0.8}>
-            <Text style={styles.btnText} weight="bold">
+          <TouchableOpacity
+            style={[styles.startBtn, { backgroundColor: "#4CAF50" }]}
+            onPress={handleStart}
+            activeOpacity={0.8}
+          >
+            <Text style={{ color: colors.palette.neutral100, fontSize: 18 }} weight="bold">
               {Platform.OS === "ios" ? "▶ Start" : "Start"}
             </Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.controlRow}>
-            <TouchableOpacity style={styles.discardBtn} onPress={handleDiscard} activeOpacity={0.8}>
-              <Text style={styles.discardBtnText} weight="bold">
+            <TouchableOpacity
+              style={[styles.discardBtn, { backgroundColor: colors.palette.neutral200 }]}
+              onPress={handleDiscard}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: colors.textDim, fontSize: 18 }} weight="bold">
                 Discard
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.stopBtn} onPress={handleStop} activeOpacity={0.8}>
-              <Text style={styles.btnText} weight="bold">
+            <TouchableOpacity
+              style={[styles.stopBtn, { backgroundColor: colors.error }]}
+              onPress={handleStop}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: colors.palette.neutral100, fontSize: 18 }} weight="bold">
                 Stop
               </Text>
             </TouchableOpacity>
@@ -163,29 +184,19 @@ export const RecordingScreen: FC<Props> = ({ route, navigation }) => {
 }
 
 const styles = StyleSheet.create({
-  btnText: {
-    color: "#fff",
-    fontSize: 18,
-  },
   controlRow: {
     flexDirection: "row",
     gap: 12,
   },
   controls: {
-    backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingTop: 8,
   },
   discardBtn: {
     alignItems: "center",
-    backgroundColor: "#f5f5f5",
     borderRadius: 12,
     flex: 1,
     paddingVertical: 16,
-  },
-  discardBtnText: {
-    color: "#666",
-    fontSize: 18,
   },
   header: {
     alignItems: "center",
@@ -199,19 +210,13 @@ const styles = StyleSheet.create({
   },
   startBtn: {
     alignItems: "center",
-    backgroundColor: "#4CAF50",
     borderRadius: 12,
     paddingVertical: 16,
   },
   statItem: {
     alignItems: "center",
   },
-  statLabel: {
-    color: "#888",
-    marginBottom: 2,
-  },
   stats: {
-    backgroundColor: "#fff",
     flexDirection: "row",
     justifyContent: "space-around",
     paddingHorizontal: 8,
@@ -219,7 +224,6 @@ const styles = StyleSheet.create({
   },
   stopBtn: {
     alignItems: "center",
-    backgroundColor: "#E53935",
     borderRadius: 12,
     flex: 1,
     paddingVertical: 16,

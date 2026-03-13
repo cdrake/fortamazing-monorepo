@@ -1,8 +1,6 @@
 import { type FC, useCallback, useState } from "react"
 import {
   View,
-  // eslint-disable-next-line no-restricted-imports
-  TextInput,
   TouchableOpacity,
   StyleSheet,
   Alert,
@@ -14,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { Screen } from "@/components/Screen"
 import { Text } from "@/components/Text"
+import { TextField } from "@/components/TextField"
 import { createActivity } from "@/lib/activities"
 import {
   ACTIVITY_TYPE_ICON,
@@ -24,6 +23,7 @@ import {
   type WorkoutData,
 } from "@/lib/activityClassification"
 import type { AppStackScreenProps } from "@/navigators/navigationTypes"
+import { useAppTheme } from "@/theme/context"
 
 type Props = AppStackScreenProps<"SaveActivity">
 
@@ -55,6 +55,9 @@ function formatDuration(secs: number): string {
 export const SaveActivityScreen: FC<Props> = ({ route, navigation }) => {
   const { type, trackData, healthKitWorkout } = route.params
   const insets = useSafeAreaInsets()
+  const {
+    theme: { colors },
+  } = useAppTheme()
 
   const [title, setTitle] = useState(generateTitle(type))
   const [privacy, setPrivacy] = useState<PrivacyOption>("private")
@@ -190,11 +193,8 @@ export const SaveActivityScreen: FC<Props> = ({ route, navigation }) => {
 
         {/* Title */}
         <View style={styles.field}>
-          <Text size="xs" weight="medium" style={styles.label}>
-            TITLE
-          </Text>
-          <TextInput
-            style={styles.input}
+          <TextField
+            label="TITLE"
             value={title}
             onChangeText={setTitle}
             placeholder="Activity title"
@@ -203,20 +203,24 @@ export const SaveActivityScreen: FC<Props> = ({ route, navigation }) => {
 
         {/* Privacy */}
         <View style={styles.field}>
-          <Text size="xs" weight="medium" style={styles.label}>
+          <Text size="xs" weight="medium" style={{ color: colors.textDim, marginBottom: 6 }}>
             PRIVACY
           </Text>
           <View style={styles.privacyRow}>
             {privacyOptions.map((opt) => (
               <TouchableOpacity
                 key={opt}
-                style={[styles.privacyBtn, privacy === opt && styles.privacyBtnActive]}
+                style={[
+                  styles.privacyBtn,
+                  { backgroundColor: colors.palette.neutral200 },
+                  privacy === opt && { backgroundColor: colors.tint },
+                ]}
                 onPress={() => setPrivacy(opt)}
               >
                 <Text
                   size="sm"
                   weight={privacy === opt ? "bold" : "normal"}
-                  style={privacy === opt ? styles.privacyTextActive : undefined}
+                  style={privacy === opt ? { color: colors.palette.neutral100 } : undefined}
                 >
                   {opt.charAt(0).toUpperCase() + opt.slice(1)}
                 </Text>
@@ -227,26 +231,26 @@ export const SaveActivityScreen: FC<Props> = ({ route, navigation }) => {
 
         {/* Track summary */}
         {trackData && (
-          <View style={styles.summaryCard}>
-            <Text size="xs" weight="medium" style={styles.label}>
+          <View style={[styles.summaryCard, { backgroundColor: colors.palette.neutral200 }]}>
+            <Text size="xs" weight="medium" style={{ color: colors.textDim, marginBottom: 6 }}>
               TRACK SUMMARY
             </Text>
             <View style={styles.summaryRow}>
               <View style={styles.summaryItem}>
-                <Text size="sm" style={styles.summaryLabel}>
+                <Text size="sm" style={{ color: colors.textDim, marginBottom: 2 }}>
                   Distance
                 </Text>
                 <Text weight="bold">{formatDistance(trackData.distance)}</Text>
               </View>
               <View style={styles.summaryItem}>
-                <Text size="sm" style={styles.summaryLabel}>
+                <Text size="sm" style={{ color: colors.textDim, marginBottom: 2 }}>
                   Duration
                 </Text>
                 <Text weight="bold">{formatDuration(trackData.duration)}</Text>
               </View>
               {trackData.elevationGain != null && (
                 <View style={styles.summaryItem}>
-                  <Text size="sm" style={styles.summaryLabel}>
+                  <Text size="sm" style={{ color: colors.textDim, marginBottom: 2 }}>
                     Elevation
                   </Text>
                   <Text weight="bold">↑{Math.round(trackData.elevationGain)}m</Text>
@@ -258,20 +262,20 @@ export const SaveActivityScreen: FC<Props> = ({ route, navigation }) => {
 
         {/* HealthKit workout summary */}
         {healthKitWorkout && (
-          <View style={styles.summaryCard}>
-            <Text size="xs" weight="medium" style={styles.label}>
+          <View style={[styles.summaryCard, { backgroundColor: colors.palette.neutral200 }]}>
+            <Text size="xs" weight="medium" style={{ color: colors.textDim, marginBottom: 6 }}>
               WORKOUT SUMMARY
             </Text>
             <View style={styles.summaryRow}>
               <View style={styles.summaryItem}>
-                <Text size="sm" style={styles.summaryLabel}>
+                <Text size="sm" style={{ color: colors.textDim, marginBottom: 2 }}>
                   Duration
                 </Text>
                 <Text weight="bold">{formatDuration(healthKitWorkout.duration)}</Text>
               </View>
               {healthKitWorkout.calories != null && (
                 <View style={styles.summaryItem}>
-                  <Text size="sm" style={styles.summaryLabel}>
+                  <Text size="sm" style={{ color: colors.textDim, marginBottom: 2 }}>
                     Calories
                   </Text>
                   <Text weight="bold">{Math.round(healthKitWorkout.calories)} kcal</Text>
@@ -279,7 +283,7 @@ export const SaveActivityScreen: FC<Props> = ({ route, navigation }) => {
               )}
               {healthKitWorkout.heartRateAvg != null && (
                 <View style={styles.summaryItem}>
-                  <Text size="sm" style={styles.summaryLabel}>
+                  <Text size="sm" style={{ color: colors.textDim, marginBottom: 2 }}>
                     Avg HR
                   </Text>
                   <Text weight="bold">{Math.round(healthKitWorkout.heartRateAvg)} bpm</Text>
@@ -292,43 +296,46 @@ export const SaveActivityScreen: FC<Props> = ({ route, navigation }) => {
         {/* Manual workout entry */}
         {isManualWorkout && (
           <View style={styles.workoutSection}>
-            <Text size="xs" weight="medium" style={styles.label}>
+            <Text size="xs" weight="medium" style={{ color: colors.textDim, marginBottom: 6 }}>
               EXERCISES
             </Text>
             {exercises.map((ex, exIdx) => (
-              <View key={exIdx} style={styles.exerciseCard}>
+              <View
+                key={exIdx}
+                style={[styles.exerciseCard, { backgroundColor: colors.palette.neutral200 }]}
+              >
                 <View style={styles.exerciseHeader}>
-                  <TextInput
-                    style={[styles.input, { flex: 1 }]}
+                  <TextField
+                    containerStyle={{ flex: 1 }}
                     value={ex.name}
                     onChangeText={(v) => updateExerciseName(exIdx, v)}
                     placeholder="Exercise name"
                   />
                   <TouchableOpacity onPress={() => removeExercise(exIdx)}>
-                    <Text style={{ color: "#E53935", fontSize: 18 }}>✕</Text>
+                    <Text style={{ color: colors.error, fontSize: 18 }}>✕</Text>
                   </TouchableOpacity>
                 </View>
                 {ex.sets.map((set, setIdx) => (
                   <View key={setIdx} style={styles.setRow}>
-                    <Text size="xs" style={{ color: "#999", width: 30 }}>
+                    <Text size="xs" style={{ color: colors.textDim, width: 30 }}>
                       #{setIdx + 1}
                     </Text>
-                    <TextInput
-                      style={styles.setInput}
+                    <TextField
+                      containerStyle={{ flex: 1 }}
                       value={set.reps?.toString() ?? ""}
                       onChangeText={(v) => updateSet(exIdx, setIdx, "reps", v)}
                       placeholder="Reps"
                       keyboardType="numeric"
                     />
-                    <TextInput
-                      style={styles.setInput}
+                    <TextField
+                      containerStyle={{ flex: 1 }}
                       value={set.weight?.toString() ?? ""}
                       onChangeText={(v) => updateSet(exIdx, setIdx, "weight", v)}
                       placeholder="Weight (kg)"
                       keyboardType="numeric"
                     />
-                    <TextInput
-                      style={styles.setInput}
+                    <TextField
+                      containerStyle={{ flex: 1 }}
                       value={set.durationSeconds?.toString() ?? ""}
                       onChangeText={(v) => updateSet(exIdx, setIdx, "durationSeconds", v)}
                       placeholder="Secs"
@@ -337,20 +344,23 @@ export const SaveActivityScreen: FC<Props> = ({ route, navigation }) => {
                   </View>
                 ))}
                 <TouchableOpacity style={styles.addSetBtn} onPress={() => addSet(exIdx)}>
-                  <Text size="sm" style={{ color: "#4A90D9" }}>
+                  <Text size="sm" style={{ color: colors.tint }}>
                     + Add Set
                   </Text>
                 </TouchableOpacity>
               </View>
             ))}
-            <TouchableOpacity style={styles.addExerciseBtn} onPress={addExercise}>
-              <Text weight="medium" style={{ color: "#4A90D9" }}>
+            <TouchableOpacity
+              style={[styles.addExerciseBtn, { backgroundColor: colors.palette.neutral200 }]}
+              onPress={addExercise}
+            >
+              <Text weight="medium" style={{ color: colors.tint }}>
                 + Add Exercise
               </Text>
             </TouchableOpacity>
 
-            <TextInput
-              style={[styles.input, { marginTop: 12 }]}
+            <TextField
+              containerStyle={{ marginTop: 12 }}
               value={workoutNotes}
               onChangeText={setWorkoutNotes}
               placeholder="Workout notes (optional)"
@@ -362,15 +372,15 @@ export const SaveActivityScreen: FC<Props> = ({ route, navigation }) => {
         {/* Save button */}
         <View style={styles.saveSection}>
           <TouchableOpacity
-            style={[styles.saveBtn, saving && { opacity: 0.6 }]}
+            style={[styles.saveBtn, { backgroundColor: colors.tint }, saving && { opacity: 0.6 }]}
             onPress={handleSave}
             disabled={saving}
             activeOpacity={0.8}
           >
             {saving ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={colors.palette.neutral100} />
             ) : (
-              <Text style={styles.saveBtnText} weight="bold">
+              <Text style={{ color: colors.palette.neutral100, fontSize: 18 }} weight="bold">
                 Save Activity
               </Text>
             )}
@@ -384,7 +394,6 @@ export const SaveActivityScreen: FC<Props> = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   addExerciseBtn: {
     alignItems: "center",
-    backgroundColor: "#f5f5f5",
     borderRadius: 10,
     paddingVertical: 12,
   },
@@ -399,7 +408,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   exerciseCard: {
-    backgroundColor: "#f9f9f9",
     borderRadius: 10,
     marginBottom: 10,
     padding: 12,
@@ -419,57 +427,24 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     paddingHorizontal: 16,
   },
-  input: {
-    borderColor: "#ddd",
-    borderRadius: 8,
-    borderWidth: 1,
-    fontSize: 15,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  label: {
-    color: "#888",
-    marginBottom: 6,
-  },
   privacyBtn: {
     alignItems: "center",
-    backgroundColor: "#f5f5f5",
     borderRadius: 8,
     flex: 1,
     paddingVertical: 10,
-  },
-  privacyBtnActive: {
-    backgroundColor: "#4A90D9",
   },
   privacyRow: {
     flexDirection: "row",
     gap: 8,
   },
-  privacyTextActive: {
-    color: "#fff",
-  },
   saveBtn: {
     alignItems: "center",
-    backgroundColor: "#4A90D9",
     borderRadius: 12,
     paddingVertical: 16,
-  },
-  saveBtnText: {
-    color: "#fff",
-    fontSize: 18,
   },
   saveSection: {
     paddingHorizontal: 16,
     paddingTop: 8,
-  },
-  setInput: {
-    borderColor: "#ddd",
-    borderRadius: 6,
-    borderWidth: 1,
-    flex: 1,
-    fontSize: 13,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
   },
   setRow: {
     alignItems: "center",
@@ -478,7 +453,6 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   summaryCard: {
-    backgroundColor: "#f9f9f9",
     borderRadius: 12,
     marginBottom: 16,
     marginHorizontal: 16,
@@ -486,10 +460,6 @@ const styles = StyleSheet.create({
   },
   summaryItem: {
     alignItems: "center",
-  },
-  summaryLabel: {
-    color: "#888",
-    marginBottom: 2,
   },
   summaryRow: {
     flexDirection: "row",

@@ -1,4 +1,6 @@
 // Activity type classification utilities (mirrors packages/lib/src/activityClassification.ts)
+// TODO: import from @fortamazing/lib/types once exports field is available
+// import type { ActivityType, ExerciseSet, Exercise, WorkoutData } from "@fortamazing/lib/types"
 
 export type ActivityType =
   | "hike"
