@@ -4,7 +4,8 @@ import React, { useEffect, useRef } from "react";
 import L, { Map as LeafletMap, LayerGroup } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { extractExifFromUrlWithFallback } from "../lib/imageHelpers"; // new function you added
-import { getFirestore, doc, setDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 // PhotoItem should match your Firestore shape
 export type PhotoItem = {
@@ -34,8 +35,6 @@ export default function PhotoMarkersFromImages({
   firestoreCollection = "photos",
 }: Props) {
   const layerRef = useRef<LayerGroup | null>(null);
-  const db = getFirestore();
-
   useEffect(() => {
     if (!map) return;
     // teardown previous

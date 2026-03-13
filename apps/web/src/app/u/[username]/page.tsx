@@ -1,6 +1,6 @@
 'use client'
 import useSWR from 'swr'
-import { auth, db, collection, query, where, getDocs, doc, getDoc, updateDoc, listActivities, type ActivityDoc } from '../../../lib/firebase'
+import { auth, db, collection, query, where, getDocs, doc, getDoc, updateDoc, listActivities, getUserUID, type ActivityDoc } from '../../../lib/firebase'
 import Image from 'next/image'
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
@@ -34,15 +34,12 @@ export default function UserProfilePage() {
     return () => unsubscribe()
   }, [])
 
-  // ✅ Fetch UID for the given username
+  // Fetch UID for the given username using shared helper
   useEffect(() => {
     const fetchUserId = async () => {
       if (!username) return
-      const usersQuery = query(collection(db, 'users'), where('username', '==', username))
-      const querySnapshot = await getDocs(usersQuery)
-      if (!querySnapshot.empty) {
-        setUserId(querySnapshot.docs[0].id) // ✅ Store the UID
-      }
+      const uid = await getUserUID(username)
+      if (uid) setUserId(uid)
     }
     fetchUserId()
   }, [username])

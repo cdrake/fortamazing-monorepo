@@ -311,7 +311,7 @@ const updateProfilePicture = async (userId: string, file: File): Promise<string>
 };
 
 // Get UID from username
-const getUserUID = async (username: string): Promise<string | null> => {
+export const getUserUID = async (username: string): Promise<string | null> => {
   try {
     const usersRef = collection(db, "users");
     const q = query(usersRef, where("username", "==", username));
