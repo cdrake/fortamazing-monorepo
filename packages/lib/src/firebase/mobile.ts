@@ -6,7 +6,7 @@ import { getStorage } from "firebase/storage";
 import type { FirebaseClientConfig } from "./config";
 
 export function getFirebaseMobile() {
-  const cfg = (Constants.expoConfig?.extra as any)?.firebase as FirebaseClientConfig;
+  const cfg = (Constants.expoConfig?.extra as Record<string, unknown> | undefined)?.firebase as FirebaseClientConfig;
 
   if (!cfg?.apiKey || !cfg?.projectId || !cfg?.appId) {
     throw new Error("Missing Firebase config for mobile");

@@ -1,9 +1,11 @@
 import type { ActivityType } from "./activityType"
 import type { ActivityPhoto } from "./activityPhoto"
-import type { GpsTrackData } from "./gpsTrackData"
+import type { GpsTrackData, DayEntry } from "./gpsTrackData"
 import type { WorkoutData } from "./workoutData"
 import type { Difficulty } from "./difficulty"
 import type { Privacy } from "./privacy"
+import type { LatLng, BBox, GeoJsonFeatureCollection } from "./geoTypes"
+import type { SummaryStats } from "./summaryStats"
 
 export type Activity = {
   ownerId: string
@@ -37,21 +39,21 @@ export type Activity = {
   public?: boolean
   owner?: { uid: string }
   descriptionMd?: string
-  days?: unknown[]
+  days?: DayEntry[]
   images?: ActivityPhoto[]
   combinedPath?: string
   combinedUrl?: string
-  combinedGeojson?: unknown
-  bounds?: unknown
+  combinedGeojson?: GeoJsonFeatureCollection
+  bounds?: BBox
   geohash?: string
   encodedPolyline?: string
   distanceMeters?: number
   movingTimeSeconds?: number
   elevationGainMeters?: number
-  startLocation?: unknown
-  endLocation?: unknown
-  bbox?: unknown
+  startLocation?: LatLng
+  endLocation?: LatLng
+  bbox?: BBox
   trackStoragePath?: string
   elevationHistogram?: number[]
-  summaryStats?: unknown
+  summaryStats?: SummaryStats
 }
