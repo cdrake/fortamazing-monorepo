@@ -1,5 +1,5 @@
 // src/screens/HikeDetail.tsx
-import { JSX, useEffect, useState } from "react"
+import { JSX, useCallback, useEffect, useState } from "react"
 import {
   View,
   ScrollView,
@@ -52,7 +52,7 @@ export default function HikeDetail(): JSX.Element {
   const [allCoordinates, setAllCoordinates] = useState<LatLng[]>([])
   const [activeDayIndex, setActiveDayIndex] = useState<number | null>(null)
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
     console.log("[HikeDetail] loading hike and images for hikeId:", hikeId)
     try {
@@ -86,11 +86,11 @@ export default function HikeDetail(): JSX.Element {
     } finally {
       setLoading(false)
     }
-  }
+  }, [hikeId])
 
   useEffect(() => {
     void load()
-  }, [hikeId])
+  }, [load])
 
   function handleDayPress(index: number) {
     setActiveDayIndex((prev) => (prev === index ? null : index))
