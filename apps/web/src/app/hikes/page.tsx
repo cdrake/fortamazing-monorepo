@@ -144,7 +144,7 @@ export default function HikesPage() {
       {loading && <p>Loading your hikes…</p>}
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-700 rounded">
+        <div className="mb-4 p-3 bg-destructive/10 text-destructive rounded">
           <strong>Error:</strong> {error}
         </div>
       )}

@@ -136,7 +136,7 @@ export default function TrainingTab({ activities }: Props) {
               <button
                 key={a.id}
                 onClick={() => setActiveTrackId(a.id)}
-                className={`w-full flex items-center gap-3 p-2 border rounded text-left transition-colors ${isActive ? "border-blue-400 bg-blue-50" : "hover:bg-gray-50"}`}
+                className={`w-full flex items-center gap-3 p-2 border rounded text-left transition-colors ${isActive ? "border-primary bg-primary/10" : "hover:bg-muted"}`}
               >
                 <div
                   className="w-3 h-3 rounded-full flex-shrink-0"

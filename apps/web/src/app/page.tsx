@@ -39,30 +39,30 @@ export default function HomePage() {
           <>
             <Link
               href="/hikes"
-              className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+              className="px-4 py-2 bg-primary text-primary-foreground rounded hover:opacity-90"
             >
               Activities
             </Link>
 
             <Link
               href="/adventures"
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              className="px-4 py-2 bg-secondary text-secondary-foreground rounded hover:opacity-90"
             >
               Adventures
             </Link>
 
             <Link
               href="/gear"
-              className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
+              className="px-4 py-2 bg-accent text-accent-foreground rounded hover:opacity-90"
             >
               Gear
             </Link>
 
-            <Link href="/diet" className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+            <Link href="/diet" className="px-4 py-2 bg-destructive text-destructive-foreground rounded hover:opacity-90">
               Diet Log
             </Link>
 
-            <Link href="/settings" className="text-blue-500 hover:underline self-center">
+            <Link href="/settings" className="text-primary hover:underline self-center">
               Settings
             </Link>
 
@@ -70,19 +70,19 @@ export default function HomePage() {
               href={`/u/${encodeURIComponent(
                 (user.email || "").replace(/@/g, ".")
               )}`}
-              className="text-blue-500 hover:underline self-center"
+              className="text-primary hover:underline self-center"
             >
               My Profile
             </Link>
 
             {isSocialAdmin && (
-              <Link href="/admin" className="text-blue-500 hover:underline self-center">
+              <Link href="/admin" className="text-primary hover:underline self-center">
                 Admin
               </Link>
             )}
           </>
         ) : (
-          <Link href="/login" className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
+          <Link href="/login" className="px-4 py-2 bg-secondary text-secondary-foreground rounded hover:opacity-90">
             Sign In
           </Link>
         )}

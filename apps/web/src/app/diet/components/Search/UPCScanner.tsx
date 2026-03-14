@@ -67,7 +67,7 @@ export default function UPCScanner({ onScan, onClose, onError }: UPCScannerProps
           controlsRef.current?.stop() // ✅ Properly stop scanner
           onClose()
         }}
-        className="mt-4 bg-red-500 text-white px-4 py-2 rounded w-full"
+        className="mt-4 bg-destructive text-destructive-foreground px-4 py-2 rounded w-full"
       >
         Close Scanner
       </button>

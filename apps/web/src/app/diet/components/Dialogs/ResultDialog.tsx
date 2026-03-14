@@ -28,7 +28,7 @@ export default function ResultDialog({ results, onSelect, onClose }: ResultDialo
 
         <button
           onClick={onClose}
-          className="mt-4 bg-red-500 text-white px-4 py-2 rounded w-full"
+          className="mt-4 bg-destructive text-destructive-foreground px-4 py-2 rounded w-full"
         >
           Close
         </button>

@@ -126,7 +126,7 @@ export default function GearForm({ initial, onSubmit, onCancel, submitLabel = "S
         <button
           type="submit"
           disabled={saving || !name.trim()}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+          className="px-4 py-2 bg-primary text-primary-foreground rounded hover:opacity-90 disabled:opacity-50"
         >
           {saving ? "Saving..." : submitLabel}
         </button>

@@ -37,7 +37,7 @@ export default function AppBar() {
   };
 
   return (
-    <nav className="flex justify-between items-center p-4 bg-blue-600 text-white">
+    <nav className="flex justify-between items-center p-4 bg-primary text-primary-foreground">
       {/* ✅ App Name */}
       <Link href="/" className="text-xl font-bold">
         Fort Amazing
@@ -77,19 +77,19 @@ export default function AppBar() {
             )}
 
             {/* ✅ Sign Out Button */}
-            <button onClick={handleSignOut} className="bg-red-500 px-3 py-1 rounded hover:bg-red-600">
+            <button onClick={handleSignOut} className="bg-destructive text-destructive-foreground px-3 py-1 rounded hover:opacity-90">
               Sign Out
             </button>
 
             {/* ✅ Admin Panel Link (Only for Social Admins) */}
             {isSocialAdmin && (
-              <Link href="/admin" className="bg-yellow-400 px-3 py-1 rounded hover:bg-yellow-500">
+              <Link href="/admin" className="bg-accent text-accent-foreground px-3 py-1 rounded hover:opacity-90">
                 Admin Panel
               </Link>
             )}
           </>
         ) : (
-          <Link href="/login" className="bg-green-500 px-3 py-1 rounded hover:bg-green-600">
+          <Link href="/login" className="bg-secondary text-secondary-foreground px-3 py-1 rounded hover:opacity-90">
             Sign In
           </Link>
         )}

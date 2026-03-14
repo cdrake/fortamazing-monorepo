@@ -82,7 +82,7 @@ export default function SignupPage() {
         <option value="female">Female</option>
         <option value="other">Other</option>
       </select>
-      <button onClick={handleSignup} className="bg-blue-500 text-white px-4 py-2 rounded w-full">
+      <button onClick={handleSignup} className="bg-primary text-primary-foreground px-4 py-2 rounded w-full">
         Complete Signup
       </button>
     </div>
