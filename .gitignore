@@ -25,5 +25,10 @@ tsconfig.tsbuildinfo
 .vscode
 *.log
 
+# Claude Code (session artifacts)
+.claude/worktrees/
+.claude/scheduled_tasks.lock
+.claude/skills/
+
 # service accounts
 service-account.json
