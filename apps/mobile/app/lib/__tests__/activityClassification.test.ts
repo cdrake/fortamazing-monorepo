@@ -5,7 +5,16 @@ import {
 } from "../activityClassification"
 
 const ALL_TYPES: ActivityType[] = [
-  "hike", "walk", "run", "bike", "climb", "ski", "kayak", "swim", "workout", "other",
+  "hike",
+  "walk",
+  "run",
+  "bike",
+  "climb",
+  "ski",
+  "kayak",
+  "swim",
+  "workout",
+  "other",
 ]
 
 describe("ACTIVITY_TYPE_ICON", () => {

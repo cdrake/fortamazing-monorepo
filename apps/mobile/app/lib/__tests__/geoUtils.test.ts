@@ -1,3 +1,5 @@
+import type { FeatureCollection, Geometry } from "geojson"
+
 import {
   haversineDistance,
   extractCoordinatesFromGeoJSON,
@@ -5,7 +7,6 @@ import {
   computeElevationMinMax,
   computeBoundsRegion,
 } from "../geoUtils"
-import type { FeatureCollection, Geometry } from "geojson"
 
 describe("haversineDistance", () => {
   it("returns 0 for identical points", () => {
