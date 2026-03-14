@@ -12,11 +12,13 @@ import { RouteProp, useNavigation, useRoute, NavigationProp } from "@react-navig
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import DaySelector from "@/components/DaySelector"
+import ElevationProfile from "@/components/ElevationProfile"
 import HikeMap from "@/components/HikeMap"
 import ImageUploadButton from "@/components/ImageUploadButton"
 import { Text } from "@/components/Text"
 import TrackStatsBar from "@/components/TrackStatsBar"
 import WorkoutDataView from "@/components/WorkoutDataView"
+import ZoomableImage from "@/components/ZoomableImage"
 import { auth as firebaseAuth } from "@/config/firebase"
 import { getActivity } from "@/lib/activities"
 import type { WorkoutData, ActivityType } from "@/lib/activityClassification"
@@ -137,7 +139,7 @@ export default function HikeDetail(): JSX.Element {
 
       <ScrollView
         scrollEnabled={scrollEnabled}
-        contentContainerStyle={themed({ padding: 16, paddingTop: (insets.top ?? 0) + 56 })}
+        contentContainerStyle={themed({ padding: 16, paddingTop: (insets.top ?? 0) + 64, paddingBottom: 32 })}
       >
         <Text weight="bold" style={themed({ fontSize: 20, marginBottom: 8 })}>
           {ACTIVITY_TYPE_ICON[(hike?.type as ActivityType) ?? "other"] ?? "🏔️"}{" "}
@@ -165,6 +167,45 @@ export default function HikeDetail(): JSX.Element {
               onDayPress={handleDayPress}
             />
             <TrackStatsBar dayTracks={dayTracks} activeDayIndex={activeDayIndex} />
+            {/* Elevation profile for active day or all days */}
+            {(() => {
+              const tracks = activeDayIndex !== null ? [dayTracks[activeDayIndex]] : dayTracks
+              const profile: { dist_m: number; elev: number }[] = []
+              let cumDist = 0
+              for (const dt of tracks) {
+                // Extract positions with elevation from GeoJSON
+                const positions: [number, number, number][] = []
+                for (const feature of dt.geojson.features) {
+                  const g = feature.geometry
+                  if (!g) continue
+                  const raw = (g as { coordinates?: unknown }).coordinates
+                  if (!raw || !Array.isArray(raw)) continue
+                  if (g.type === "LineString") {
+                    for (const pos of raw as number[][]) {
+                      if (pos.length >= 3) positions.push([pos[1], pos[0], pos[2]])
+                    }
+                  } else if (g.type === "MultiLineString") {
+                    for (const line of raw as number[][][]) {
+                      for (const pos of line) {
+                        if (pos.length >= 3) positions.push([pos[1], pos[0], pos[2]])
+                      }
+                    }
+                  }
+                }
+                for (let i = 0; i < positions.length; i++) {
+                  if (i > 0) {
+                    const dlat = (positions[i][0] - positions[i - 1][0]) * 111320
+                    const dlon =
+                      (positions[i][1] - positions[i - 1][1]) *
+                      111320 *
+                      Math.cos((positions[i][0] * Math.PI) / 180)
+                    cumDist += Math.sqrt(dlat * dlat + dlon * dlon)
+                  }
+                  profile.push({ dist_m: cumDist, elev: positions[i][2] })
+                }
+              }
+              return profile.length > 1 ? <ElevationProfile profile={profile} /> : null
+            })()}
           </View>
         )}
 
@@ -201,11 +242,9 @@ export default function HikeDetail(): JSX.Element {
           <Text>No photos yet</Text>
         ) : (
           images.map((img) => (
-            <Image
-              key={img.id}
-              source={{ uri: img.url }}
-              style={themed({ width: "100%", height: 220, marginBottom: 12, borderRadius: 8 })}
-            />
+            <View key={img.id} style={{ marginBottom: 12 }}>
+              <ZoomableImage uri={img.url} />
+            </View>
           ))
         )}
       </ScrollView>

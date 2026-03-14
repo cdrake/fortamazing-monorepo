@@ -1,5 +1,5 @@
-// app/components/DaySelector.tsx — Horizontal day picker for multi-day hikes
-import { ScrollView, TouchableOpacity, View } from "react-native"
+// app/components/DaySelector.tsx — Vertical day/track list
+import { TouchableOpacity, View } from "react-native"
 
 import { Text } from "@/components/Text"
 import type { DayTrack } from "@/lib/trackData"
@@ -17,15 +17,16 @@ function formatDistance(meters: number): string {
   return `${Math.round(meters)} m`
 }
 
+function formatElevation(elev: { min: number; max: number } | null): string | null {
+  if (!elev) return null
+  return `${Math.round(elev.min)}–${Math.round(elev.max)} m`
+}
+
 export default function DaySelector({ dayTracks, activeDayIndex, onDayPress }: DaySelectorProps) {
   if (dayTracks.length < 2) return null
 
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ paddingVertical: 8, gap: 8 }}
-    >
+    <View style={{ marginTop: 8, gap: 6 }}>
       {dayTracks.map((day, index) => {
         const isActive = activeDayIndex === index
         return (
@@ -37,45 +38,50 @@ export default function DaySelector({ dayTracks, activeDayIndex, onDayPress }: D
               flexDirection: "row",
               alignItems: "center",
               paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 20,
-              backgroundColor: isActive ? day.color : "#f0f0f0",
-              borderWidth: 2,
-              borderColor: day.color,
+              paddingVertical: 10,
+              borderRadius: 10,
+              backgroundColor: isActive ? day.color : "#f5f3f2",
+              borderLeftWidth: 4,
+              borderLeftColor: day.color,
             }}
           >
-            <View
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: 5,
-                backgroundColor: isActive ? "#fff" : day.color,
-                marginRight: 6,
-              }}
-            />
-            <Text
-              style={{
-                fontSize: 13,
-                fontWeight: "600",
-                color: isActive ? "#fff" : "#333",
-              }}
-            >
-              {day.name}
-            </Text>
-            {day.stats.distance_m > 0 && (
+            <View style={{ flex: 1 }}>
               <Text
                 style={{
-                  fontSize: 11,
-                  color: isActive ? "rgba(255,255,255,0.8)" : "#888",
-                  marginLeft: 6,
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: isActive ? "#fff" : "#333",
                 }}
+                numberOfLines={2}
               >
-                {formatDistance(day.stats.distance_m)}
+                {day.name}
               </Text>
-            )}
+              <View style={{ flexDirection: "row", gap: 12, marginTop: 2 }}>
+                {day.stats.distance_m > 0 && (
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: isActive ? "rgba(255,255,255,0.8)" : "#888",
+                    }}
+                  >
+                    {formatDistance(day.stats.distance_m)}
+                  </Text>
+                )}
+                {formatElevation(day.stats.elevation) && (
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: isActive ? "rgba(255,255,255,0.8)" : "#888",
+                    }}
+                  >
+                    ↕ {formatElevation(day.stats.elevation)}
+                  </Text>
+                )}
+              </View>
+            </View>
           </TouchableOpacity>
         )
       })}
-    </ScrollView>
+    </View>
   )
 }

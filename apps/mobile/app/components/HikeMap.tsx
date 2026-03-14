@@ -14,7 +14,7 @@ type HikeMapProps = {
   style?: ViewStyle
 }
 
-const EDGE_PADDING = { top: 40, right: 40, bottom: 40, left: 40 }
+const EDGE_PADDING = { top: 40, right: 40, bottom: 60, left: 40 }
 
 export default function HikeMap({
   dayTracks,
@@ -38,7 +38,7 @@ export default function HikeMap({
   }, [allCoordinates])
 
   return (
-    <View style={[{ height: 300, borderRadius: 12, overflow: "hidden" }, style]}>
+    <View style={[{ height: 350, borderRadius: 12, overflow: "hidden" }, style]}>
       <MapView
         ref={mapRef}
         style={{ flex: 1 }}
