@@ -16,7 +16,7 @@ import { gpx as parseGpx, kml as parseKml } from "togeojson";
 import { convertHeicFile, extractExifFromFile, extractExifFromUrl, insertGpsExifIntoJpeg, isBlobLike, LatLon } from "../lib/imageHelpers"; // optional helper
 import LightboxGallery from "./LightboxGallery";
 import { getCombinedExtentFromDayTracks } from "../lib/trackUtils";
-import ElevationHistogram from "./ElevationHistogram";
+import ElevationProfile from "./ElevationProfile";
 import MarkdownEditor from "./MarkdownEditor";
 
 type TrackDetailProps = {
@@ -787,17 +787,13 @@ async function addMarker(lat: number, lon: number, imageUrl: string, opts?: { ti
                 <div>Distance: {(activeSegmentProfile[activeSegmentProfile.length - 1].dist_m / 1000).toFixed(2)} km</div>
                 <div>Elevation range: {Math.round(Math.min(...activeSegmentProfile.map(p => p.elev)))}–{Math.round(Math.max(...activeSegmentProfile.map(p => p.elev)))} m</div>
 
-                {/* Inline histogram for the selected segment */}
-                {selectedElevations && selectedElevations.length > 0 ? (
+                {/* Elevation profile along the track segment */}
+                {activeSegmentProfile && activeSegmentProfile.length > 0 && activeSegmentProfile.some(p => p.elev !== 0) ? (
                   <div className="mt-3">
-                    <ElevationHistogram
-                      elevations={selectedElevations}
-                      bins={40}
+                    <ElevationProfile
+                      profile={activeSegmentProfile}
                       title="Segment elevation"
                     />
-                    <div className="mt-2">
-                      <button className="px-2 py-1 border rounded text-sm" onClick={() => setSelectedElevations(null)}>Hide elevation</button>
-                    </div>
                   </div>
                 ) : (
                   <div className="text-sm text-gray-600 mt-2">No elevation data available for this segment.</div>
