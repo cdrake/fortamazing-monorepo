@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Mountain with fort crenellations -->
+  <defs>
+    <linearGradient id="mountainGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C76542"/>
+      <stop offset="100%" stop-color="#A54F31"/>
+    </linearGradient>
+  </defs>
+  <!-- Main mountain shape -->
+  <path d="M128 40 L220 200 L36 200 Z" fill="url(#mountainGrad)"/>
+  <!-- Fort crenellations on the peak -->
+  <rect x="108" y="40" width="10" height="16" fill="#41476E"/>
+  <rect x="122" y="40" width="10" height="16" fill="#41476E"/>
+  <rect x="136" y="40" width="10" height="16" fill="#41476E"/>
+  <!-- Trail path -->
+  <path d="M128 80 Q100 120 130 140 Q160 160 120 200" fill="none" stroke="#FFBB50" stroke-width="4" stroke-linecap="round"/>
+  <!-- Base platform -->
+  <rect x="30" y="200" width="196" height="8" rx="4" fill="#41476E"/>
+</svg>

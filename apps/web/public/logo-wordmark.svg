@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 80" width="400" height="80">
+  <!-- Icon (scaled down) -->
+  <g transform="translate(0, 4) scale(0.28)">
+    <defs>
+      <linearGradient id="wmGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#C76542"/>
+        <stop offset="100%" stop-color="#A54F31"/>
+      </linearGradient>
+    </defs>
+    <path d="M128 40 L220 200 L36 200 Z" fill="url(#wmGrad)"/>
+    <rect x="108" y="40" width="10" height="16" fill="#41476E"/>
+    <rect x="122" y="40" width="10" height="16" fill="#41476E"/>
+    <rect x="136" y="40" width="10" height="16" fill="#41476E"/>
+    <path d="M128 80 Q100 120 130 140 Q160 160 120 200" fill="none" stroke="#FFBB50" stroke-width="4" stroke-linecap="round"/>
+    <rect x="30" y="200" width="196" height="8" rx="4" fill="#41476E"/>
+  </g>
+  <!-- Wordmark text -->
+  <text x="85" y="54" font-family="'Space Grotesk', sans-serif" font-weight="700" font-size="36" fill="#191015">
+    <tspan fill="#C76542">Fort</tspan><tspan fill="#41476E">Amazing</tspan>
+  </text>
+</svg>
