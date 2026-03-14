@@ -44,14 +44,14 @@ export default function VerifyEmailPage() {
       <p>Please check your inbox and click the verification link.</p>
       <button
         onClick={handleResendEmail}
-        className="bg-blue-500 text-white px-4 py-2 rounded mt-4"
+        className="bg-primary text-primary-foreground px-4 py-2 rounded mt-4"
       >
         Resend Verification Email
       </button>
       {emailSent && <p className="text-green-500 mt-2">Email sent! Check your inbox.</p>}
       <button
         onClick={handleSignOut}
-        className="bg-red-500 text-white px-4 py-2 rounded mt-4"
+        className="bg-destructive text-destructive-foreground px-4 py-2 rounded mt-4"
       >
         Sign Out
       </button>

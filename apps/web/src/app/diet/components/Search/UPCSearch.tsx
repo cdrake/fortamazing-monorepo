@@ -44,7 +44,7 @@ export default function UPCSearch({ onResult }: UPCSearchProps) {
       />
       <button
         onClick={handleUPCSearch}
-        className="bg-green-500 text-white px-4 py-2 rounded"
+        className="bg-secondary text-secondary-foreground px-4 py-2 rounded"
       >
         Scan/Search
       </button>

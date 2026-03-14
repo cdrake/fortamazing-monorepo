@@ -925,7 +925,7 @@ async function addMarker(lat: number, lon: number, imageUrl: string, opts?: { ti
         </aside>
       </div>
 
-      {error && <div className="mt-3 p-2 bg-red-50 text-red-700 rounded">{error}</div>}
+      {error && <div className="mt-3 p-2 bg-destructive/10 text-destructive rounded">{error}</div>}
       {loading && <div className="mt-3 text-sm text-gray-600">Loading…</div>}
     </div>
   );

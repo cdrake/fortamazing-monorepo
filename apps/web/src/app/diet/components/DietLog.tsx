@@ -148,7 +148,7 @@ export default function DietLog() {
       <h2 className="text-2xl font-bold mb-4">Diet Log</h2>
       <button
         onClick={() => setShowCalendar(!showCalendar)}
-        className="bg-blue-500 text-white px-3 py-1 rounded mb-4"
+        className="bg-primary text-primary-foreground px-3 py-1 rounded mb-4"
       >
         📅 Change Date
       </button>
@@ -164,13 +164,13 @@ export default function DietLog() {
       <TextSearch onResult={handleSearchResults} />
       <button
         onClick={() => setShowAddForm(true)}
-        className="bg-blue-500 text-white px-4 py-2 rounded my-4"
+        className="bg-primary text-primary-foreground px-4 py-2 rounded my-4"
       >
         + Add Meal
       </button>
       <button
         onClick={() => setShowScanner(true)}
-        className="bg-green-500 text-white px-4 py-2 rounded my-4"
+        className="bg-secondary text-secondary-foreground px-4 py-2 rounded my-4"
       >
         📷 Scan Barcode
       </button>

@@ -101,7 +101,7 @@ export default function UserSettings() {
         onChange={(e) => setUsername(e.target.value.toLowerCase())}
         className="border p-2 rounded w-full mb-2"
       />
-      <button onClick={handleUpdateUsername} className="bg-blue-500 text-white px-4 py-2 rounded w-full">
+      <button onClick={handleUpdateUsername} className="bg-primary text-primary-foreground px-4 py-2 rounded w-full">
         Update Username
       </button>
 
@@ -113,7 +113,7 @@ export default function UserSettings() {
         onChange={(e) => setDisplayName(e.target.value)}
         className="border p-2 rounded w-full mt-4 mb-2"
       />
-      <button onClick={handleUpdateProfile} className="bg-green-500 text-white px-4 py-2 rounded w-full">
+      <button onClick={handleUpdateProfile} className="bg-secondary text-secondary-foreground px-4 py-2 rounded w-full">
         Update Display Name
       </button>
 

@@ -87,7 +87,7 @@ export default function AdminPage() {
           onChange={(e) => setEmail(e.target.value)}
           className="border p-2 rounded w-full mb-2"
         />
-        <button onClick={handleGenerateInvite} className="bg-green-500 text-white px-4 py-2 rounded w-full">
+        <button onClick={handleGenerateInvite} className="bg-primary text-primary-foreground px-4 py-2 rounded w-full">
           Generate Invite
         </button>
       </div>
@@ -105,7 +105,7 @@ export default function AdminPage() {
               </div>
               <button
                 onClick={() => handleDeleteInvite(invite.id)}
-                className="bg-red-500 text-white px-3 py-1 rounded"
+                className="bg-destructive text-destructive-foreground px-3 py-1 rounded"
               >
                 Delete
               </button>

@@ -69,7 +69,7 @@ export default function LoginPage() {
       ) : (
         <><button
             onClick={handleGoogleSignIn}
-            className="bg-blue-500 text-white px-4 py-2 rounded w-full"
+            className="bg-primary text-primary-foreground px-4 py-2 rounded w-full"
             disabled={loading}
           >
             {loading ? "Signing in..." : "Sign in with Google"}
